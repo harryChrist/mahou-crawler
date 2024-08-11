@@ -8,7 +8,6 @@ const app = express();
 const routes = require('@/routes');
 const helmet = require('helmet');
 const compression = require('compression');
-
 const bodyParser = require('body-parser');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const htmlParser = require('node-html-parser');
@@ -50,7 +49,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(bodyParser.json({ limit: '100mb' }));
 app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
 
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT || 3030;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
