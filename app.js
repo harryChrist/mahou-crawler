@@ -83,6 +83,7 @@ app.post('/api/translate', async (req, res) => {
         res.setHeader('Content-Type', 'text/plain; charset=utf-8');
 
         for (const chunk of chunks) {
+            console.log(chunk.length)
             const result = await model.generateContent(`Traduza para o Português Brasileiro: ${chunk}`);
             const translatedText = result.response.text();
             res.write(`${translatedText}\n`); // Mantém uma quebra de linha entre cada bloco traduzido
