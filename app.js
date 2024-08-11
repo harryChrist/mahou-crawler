@@ -47,7 +47,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(bodyParser.json({ limit: '100mb' }));
 app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
 
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 3002;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
