@@ -6,6 +6,9 @@ const path = require('path');
 
 const app = express();
 const routes = require('@/routes');
+const helmet = require('helmet');
+const compression = require('compression');
+
 const bodyParser = require('body-parser');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const htmlParser = require('node-html-parser');
