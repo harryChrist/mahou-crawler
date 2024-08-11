@@ -39,14 +39,13 @@ const sourceDir = path.join(__dirname, 'src/source');
 // Carregar crawlers dinamicamente das subpastas
 loadProvidersFromDirectories(sourceDir, providers);
 
-app.use(express.json());
+app.use(cors());
 app.use('/api', routes(providers));
 app.use(helmet());
 app.use(compression());
 app.use(express.urlencoded({ extended: true }));
 app.use(bodyParser.json({ limit: '100mb' }));
 app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
-app.use(cors());
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
