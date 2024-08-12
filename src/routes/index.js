@@ -4,7 +4,8 @@ module.exports = (providers) => {
     const router = express.Router();
 
     const findProviderByUrl = (url) => {
-        return Object.values(providers).find(provider => url.startsWith(provider.baseUrl));
+        const objectProviders = Object.values(providers);
+        return objectProviders.find(provider => url.startsWith(provider.baseUrl));
     }
 
     // Rota para buscar novels
