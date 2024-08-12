@@ -1,4 +1,4 @@
-const NovelFull = require('../../template/novelFull');
+const NovelFull = require('@/template/novelFull');
 
 class CentralNovelProvider extends NovelFull {
     constructor() {

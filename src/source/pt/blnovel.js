@@ -1,6 +1,6 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
-const BaseProvider = require('../BaseProvider');  // Assumindo que BaseProvider é uma classe base similar a Crawler no Python
+const BaseProvider = require('@/template/BaseProvider');  // Assumindo que BaseProvider é uma classe base similar a Crawler no Python
 
 class BlNovelsProvider extends BaseProvider {
     constructor() {

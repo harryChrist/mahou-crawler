@@ -1,4 +1,4 @@
-const ThemasiaTemplate = require('../../template/Themasia.js');
+const ThemasiaTemplate = require('@/template/Themasia.js');
 
 class TsondokuProvider extends ThemasiaTemplate {
     constructor() {

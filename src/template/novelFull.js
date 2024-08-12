@@ -1,6 +1,6 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
-const BaseProvider = require('@/source/BaseProvider');
+const BaseProvider = require('@/template/BaseProvider');
 
 class NovelFull extends BaseProvider {
     is_template = true;

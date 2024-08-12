@@ -64,7 +64,7 @@ module.exports = (providers) => {
     });
 
     router.get('/providers', (req, res) => {
-        res.status(200).json(providers);
+        res.status(200).json(Object.values(providers).map(config => config.name));
     })
 
     return router;
