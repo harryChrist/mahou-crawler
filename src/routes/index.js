@@ -3,15 +3,19 @@ const express = require('express');
 module.exports = (providers) => {
     const router = express.Router();
 
+    const findProviderByUrl = (url) => {
+        return Object.values(providers).find(provider => url.startsWith(provider.baseUrl));
+    }
+
     // Rota para buscar novels
     router.get('/search', async (req, res) => {
-        const { site, titulo } = req.query;
+        const { type, q } = req.query;
         try {
-            const provider = providers[site.toLowerCase()];
+            const provider = providers[type.toLowerCase()];
             if (!provider) {
                 return res.status(404).json({ error: 'Provider not found' });
             }
-            const results = await provider.searchNovel(titulo);
+            const results = await provider.searchNovel(q);
             res.status(200).json(results);
         } catch (error) {
             res.status(500).json({ error: error.message });
@@ -20,9 +24,14 @@ module.exports = (providers) => {
 
     // Rota para obter informações de uma novel
     router.get('/chapters', async (req, res) => {
-        const { site, url } = req.query;
+        const { type, url } = req.query;
         try {
-            const provider = providers[site.toLowerCase()];
+            let provider;
+            if (type) {
+                provider = providers[type.toLowerCase()];
+            } else {
+                provider = findProviderByUrl(url);
+            }
             if (!provider) {
                 return res.status(404).json({ error: 'Provider not found' });
             }
@@ -35,9 +44,14 @@ module.exports = (providers) => {
 
     // Rota para obter o conteúdo de um capítulo
     router.get('/chapter-content', async (req, res) => {
-        const { site, url, image } = req.query;
+        const { type, url, image } = req.query;
         try {
-            const provider = providers[site.toLowerCase()];
+            let provider;
+            if (type) {
+                provider = providers[type.toLowerCase()];
+            } else {
+                provider = findProviderByUrl(url);
+            }
             if (!provider) {
                 return res.status(404).json({ error: 'Provider not found' });
             }
@@ -48,24 +62,16 @@ module.exports = (providers) => {
         }
     });
 
-    // Rota para obter todas as informações de uma novel
-    router.get('/all', async (req, res) => {
-        const { site, link } = req.query;
-        try {
-            const provider = providers[site.toLowerCase()];
-            if (!provider) {
-                return res.status(404).json({ error: 'Provider not found' });
-            }
-            const results = await provider.getAll(link);
-            res.status(200).json(results);
-        } catch (error) {
-            res.status(500).json({ error: error.message });
-        }
+    router.get('/providers', (req, res) => {
+        const providerList = Object.values(providers).map(config => ({
+            name: config.name,
+            language: config.language,
+            baseUrl: config.baseUrl,
+        }));
+
+        res.status(200).json(providerList);
     });
 
-    router.get('/providers', (req, res) => {
-        res.status(200).json(Object.values(providers).map(config => config.name));
-    })
 
     return router;
 };

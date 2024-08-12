@@ -29,6 +29,7 @@ const loadProvidersFromDirectories = (dir, providers) => {
             const provider = require(fullPath);
             if (provider && provider.name) {
                 providers[provider.name.toLowerCase()] = provider;
+                providers[provider.name.toLowerCase()].language = path.basename(dir)
             }
         }
     });
