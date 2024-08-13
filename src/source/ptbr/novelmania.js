@@ -51,43 +51,61 @@ class NovelManiaProvider extends BaseProvider {
             // Inicializando volumes
             const volumes = [];
 
+            $('.card-header').each((index, element) => {
+                volumes.push({
+                    name: $(element).text().trim(),
+                    slug: this.slugifyString($(element).text().trim()),
+                    chapters: []
+                });
+            });
+
             // Selecionando todos os elementos <volume> dentro de <capitulos>
             // Selecionando todos os elementos <div.card-header> que representam volumes
-            $('.card-header').each((index, element) => {
-                const cardID = $(element).attr('id'); // Captura o ID do card-header
-                const volumeName = $(element).find('.card-header button').text().trim();
+            $(`ol.list-inline li`).each((index, element) => {
+                const chapterData = this.parseChapterItem($, element);
+                const volumeIndex = chapterData.volume ? this.findVolumeIndex(volumes, chapterData.volume) : 0;
+
+                if (volumeIndex >= 0) {
+                    volumes[volumeIndex].chapters.push(chapterData);
+                } else {
+                    // Caso especial para capítulos que não pertencem a um volume específico
+                    if (volumes.length === 0) {
+                        volumes.push({
+                            name: "Capítulos",
+                            slug: this.slugifyString("Capítulos"),
+                            chapters: [chapterData]
+                        });
+                    } else {
+                        volumes[0].chapters.push(chapterData);
+                    }
+                }
+
+                /*const link = $(elemento).parent().attr('href');
+                const chapterTitle = $(elemento).siblings('strong').text();
+                const data = $(elemento).siblings('small').text();
+                const volumeName = $(elemento).siblings('span').text();
                 const volumeNumberMatch = volumeName.match(/\d+/);
                 const volumeNumber = volumeNumberMatch ? parseInt(volumeNumberMatch[0], 10) : null;
-                const chapters = [];
+                const chapterMatch = chapterTitle.match(/\d+/);
+                const chapterNumber = chapterMatch ? parseInt(chapterMatch[0], 10) : null;
 
-                // Percorrendo todos os capítulos dentro deste volume
-                $('.card-body').find('ol.list-inline').each((bodyIndex, bodyElement) => {
-                    $(bodyElement).find('li').each((chapterIndex, chapterElement) => {
-                        const chapterUrl = $(chapterElement).find('a').attr('href');
-                        const chapterTitle = $(chapterElement).find('strong').text().trim();
-                        const chapterDate = $(chapterElement).find('small').text().trim();
-
-                        const chapterMatch = chapterTitle.match(/\d+/);
-                        const chapterNumber = chapterMatch ? parseInt(chapterMatch[0], 10) : null;
-
-                        const chapterData = {
-                            name: chapterTitle,
-                            url: this.baseUrl + chapterUrl,
-                            date: chapterDate,
-                            index: chapterNumber,
-                            volume: volumeNumber // Associando capítulo ao volume
-                        };
-                        chapters.push(chapterData);
-                    })
-                });
-                volumes.push({
-                    id: cardID,
-                    name: volumeName,
-                    slug: this.slugifyString(volumeName),
+                const novoCapitulo = {
+                    index: chapterNumber,
                     volume: volumeNumber,
-                    chapters
-                });
+                    name: chapterTitle,
+                    slug: this.slugifyString(title),
+                    createdAt: data,
+                    url: link, index: 0
+                };
 
+                const volumeExistente = volumes.find((item) => item.volume === volumeNumber);
+
+                if (volumeExistente) {
+                    volumeExistente.chapters.push(novoCapitulo);
+                } else {
+                    const novoVolume = { volume: volumeNumber, name: volumeName, slug: this.slugifyString(volumeName), chapters: [novoCapitulo] };
+                    volumes.push(novoVolume);
+                }*/
             });
 
             // Ordenando volumes e capítulos (se necessário)
@@ -134,19 +152,22 @@ class NovelManiaProvider extends BaseProvider {
 
     parseChapterItem($, element) {
         const chapterUrl = $(element).find('a').attr('href');
-        const chapterNum = $(element).find('a').text().trim();
-        const chapterText = $(element).find('a').text().trim();
+        const chapterNum = $(element).find('strong').text().trim();
+        const chapterText = $(element).find('strong').text().trim();
         const chapterTitle = chapterText.replace(/(Cap\.|Chap\.|Capítulo|Capitulo)\s*\d+\s*-\s*/, '').trim();
+
+        const volumeName = $(element).find('span').text();
+        const volumeNumberMatch = volumeName.match(/\d+/);
+        const volumeNumber = volumeNumberMatch ? parseInt(volumeNumberMatch[0], 10) : null;
 
         const capMatch = chapterNum.match(/(Cap\.|Chap\.|Capítulo|Capitulo)\s*(\d+)/i);
         const extraMatch = chapterNum.match(/(Extra) (\d+)/);
 
         return {
-            capitulo: chapterNum,
             name: chapterTitle.replace(/^\d+\s*-\s*/, '').trim(),
             url: chapterUrl,
             index: parseInt(capMatch ? capMatch[2] : extraMatch ? extraMatch[2] : '', 10),
-            volume: parseFloat(chapterNum.match(/Vol\. (\d+(\.\d+)?)/)?.[1]) || null
+            volume: volumeNumber
         };
     }
 
