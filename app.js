@@ -55,7 +55,7 @@ app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
 
-const genAI = new GoogleGenerativeAI("AIzaSyDA0kgqMeItrWFz1FUKDTTriRUQsOSWfP8");
+const genAI = new GoogleGenerativeAI(process.env.API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 app.post('/api/translate', async (req, res) => {
