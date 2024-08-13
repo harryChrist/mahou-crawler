@@ -75,7 +75,7 @@ class NovelManiaProvider extends BaseProvider {
                             url: this.baseUrl + chapterUrl,
                             date: chapterDate,
                             index: chapterNumber,
-                            volume: volumeName // Associando capítulo ao volume
+                            volume: volumeNumber // Associando capítulo ao volume
                         };
                         chapters.push(chapterData);
                     })
