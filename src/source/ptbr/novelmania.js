@@ -165,7 +165,7 @@ class NovelManiaProvider extends BaseProvider {
 
         return {
             name: chapterTitle.replace(/^\d+\s*-\s*/, '').trim(),
-            url: chapterUrl,
+            url: this.baseUrl + chapterUrl,
             index: parseInt(capMatch ? capMatch[2] : extraMatch ? extraMatch[2] : '', 10),
             volume: volumeNumber
         };
