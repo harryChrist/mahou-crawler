@@ -43,12 +43,13 @@ const sourceDir = path.join(__dirname, 'src/source');
 loadProvidersFromDirectories(sourceDir, providers);
 
 app.use(cors());
-app.use('/api', routes(providers));
 app.use(helmet());
 app.use(compression());
 app.use(express.urlencoded({ extended: true }));
 app.use(bodyParser.json({ limit: '100mb' }));
 app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
+
+app.use('/api', routes(providers));
 
 const PORT = process.env.PORT || 3030;
 app.listen(PORT, () => {
