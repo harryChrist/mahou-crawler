@@ -50,20 +50,20 @@ class BlNovelsProvider extends BaseProvider {
 
             const possibleTitle = $('.post-title h1');
             possibleTitle.find('span').remove();
-            this.novelTitle = possibleTitle.text().trim();
-            console.info("Novel title:", this.novelTitle);
+            const novelTitle = possibleTitle.text().trim();
+            console.info("Novel title:", novelTitle);
 
             const possibleImage = $('.summary_image a img');
-            this.novelCover = possibleImage.attr('src') ? this.getFullUrl(possibleImage.attr('src')) : '';
-            console.info("Novel cover:", this.novelCover);
+            const novelCover = possibleImage.attr('src') ? this.getFullUrl(possibleImage.attr('src')) : '';
+            console.info("Novel cover:", novelCover);
 
-            this.novelAuthor = $('.author-content a[href*="autor"]')
+            const novelAuthors = $('.author-content a[href*="autor"]')
                 .map((i, el) => $(el).text().trim())
-                .get()
-                .join(' ');
-            console.info("Novel author:", this.novelAuthor);
+                .get();
 
-            const chapterListUrl = this.getFullUrl(this.novelUrl+ 'ajax/chapters');
+            console.info("Novel author(s):", novelAuthors);
+
+            const chapterListUrl = this.getFullUrl(this.novelUrl + 'ajax/chapters');
             const { data: chapterData } = await axios.post(chapterListUrl, null, {
                 headers: {
                     'accept': '*/*',
@@ -74,31 +74,90 @@ class BlNovelsProvider extends BaseProvider {
             });
             const chapterSoup = cheerio.load(chapterData);
 
-            this.chapters = [];
-            this.volumes = [];
+            let chapters = [];
+            let volumes = [];
 
+            // Caso 1: Não há volumes, apenas capítulos
+            const noVolumes = chapterSoup('.no-volumn');
+            if (noVolumes.length) {
+                noVolumes.find('.wp-manga-chapter a').each((i, a) => {
+                    chapters.push(this.processChapter(chapterSoup(a), 0));
+                });
+                volumes.push({ name: "Volume 0", slug: "volume-0", chapters })
+            }
 
-            chapterSoup('.wp-manga-chapter a[href*="/novel"]').each((i, a) => {
-                const title = $(a).text().replace(/^\d+\s*-\s*/, '').trim();
-                const chapId = this.chapters.length + 1;
-                const volId = 1 + Math.floor(this.chapters.length / 100);
-                if (chapId % 100 === 1) {
-                    this.volumes.push({ id: volId });
-                }
-                this.chapters.push({
-                    id: chapId,
-                    volume: volId,
-                    title: title,
-                    url: this.getFullUrl($(a).attr('href')),
+            // Caso 2: Há volumes e capítulos dentro de cada volume
+            const withVolumes = chapterSoup('.volumns');
+            if (withVolumes.length) {
+                withVolumes.find('.parent').each((i, volumeElement) => {
+                    const volumeName = chapterSoup(volumeElement).find('a').first().text().trim();
+                    const volumeSlug = this.slugifyString(volumeName);
+                    const volumeId = parseFloat(volumeName.match(/Volume (\d+(\.\d+)?)/)?.[1]) || null
+
+                    // Processando capítulos dentro deste volume
+                    let volumeChapters = [];
+                    chapterSoup(volumeElement).find('.wp-manga-chapter a').each((j, a) => {
+                        volumeChapters.push(this.processChapter(chapterSoup(a), volumeId));
+                    });
+
+                    volumes.push({
+                        name: volumeName,
+                        slug: volumeSlug,
+                        chapters: volumeChapters
+                    });
+                });
+            }
+
+            // Reverter a ordem dos volumes e capítulos
+            volumes.reverse();
+            volumes.forEach(volume => {
+                volume.chapters.reverse();
+            });
+
+            // Atribuir o `index` incremental a partir de 1 para cada capítulo em cada volume
+            volumes.forEach(volume => {
+                volume.chapters.forEach((chapter, index) => {
+                    chapter.index = index + 1;
+                    chapter.capitulo = `Vol. ${chapter.volume} Cap. ${chapter.index}`;
                 });
             });
 
-            return this.chapters
+            // Contabilizando volumes
+            const totalVolumes = volumes.length > 0 ? volumes.length : 1;  // Se não houver volumes, considerar 1
+
+            // Estruturando o objeto final
+            const novelData = {
+                title: novelTitle,
+                coverUrl: novelCover,
+                authors: novelAuthors,
+                volumes: totalVolumes,
+                data: volumes
+            };
+
+            return novelData
         } catch (error) {
             console.error("Erro ao buscar o conteúdo:", error.message);
             throw error;
         }
     }
+
+    processChapter(chapterElement, volumeId) {
+        const title = chapterElement.text().trim();
+        let index = 0;
+        const cleanedTitle = title.replace(/Cap[íi]tulo\s*\d+\s*[-:]\s*/i, '').trim();
+        const finalTitle = cleanedTitle === title ? '' : cleanedTitle;
+        const capitulo = `Vol. ${volumeId} Cap. ${index}`;
+    
+        return {
+            capitulo: capitulo,
+            name: finalTitle,
+            url: this.getFullUrl(chapterElement.attr('href')),
+            index: index,
+            volume: volumeId
+        };
+    }
+    
+    
 
     async downloadChapterBody(chapter) {
         const { data } = await axios.get(this.getFullUrl(chapter.url));
