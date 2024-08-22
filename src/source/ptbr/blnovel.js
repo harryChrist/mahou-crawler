@@ -157,14 +157,42 @@ class BlNovelsProvider extends BaseProvider {
         };
     }
     
-    
+    async downloadChapterBody(url, processImage = false) {
+        const response = await axios.get(this.getFullUrl(url));
+        const html = response.data;
+        const $ = cheerio.load(html);
 
-    async downloadChapterBody(chapter) {
-        const { data } = await axios.get(this.getFullUrl(chapter.url));
-        const $ = cheerio.load(data);
-        const contents = $('.text-left');
-        return this.cleaner ? this.cleaner.extractContents(contents) : contents.html();
+        $('img').each(function () {
+            const src = $(this).attr('src');
+            const alt = $(this).attr('alt') || '';  // Use um valor padrão vazio se o atributo alt não estiver presente
+
+            // Remova todos os atributos
+            for (let attribute of this.attributes) {
+                $(this).removeAttr(attribute.name);
+            }
+
+            // Adicione apenas os atributos src e alt
+            $(this).attr('src', src);
+            $(this).attr('alt', alt);
+
+            // Adicione a classe do Tailwind para centralizar
+            $(this).addClass('mx-auto');
+        });
+
+        // Remover elementos indesejados
+        $('.epcontent.entry-content div.kln, .epcontent.entry-content div.klnmid').remove();
+        $('div.padSection#padSection').remove();  // Remover <div class="padSection" id="padSection">
+        $('p').removeAttr('style').removeAttr('data-mce-style').removeAttr('data-p-id');
+
+        let chapterContent = $('.text-left').html();
+
+        if (processImage) {
+            let processContent = await this.processImagesInContent(chapterContent);
+            return { content: processContent.replace(/"/g, "'").replace(/\n/g, '') };
+        }
+        return { content: chapterContent.replace(/"/g, "'").replace(/\n/g, '') };
     }
+
 }
 
 module.exports = new BlNovelsProvider();

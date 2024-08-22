@@ -183,7 +183,6 @@ class MangaStream extends BaseProvider {
         $('p').removeAttr('style').removeAttr('data-mce-style');
 
         let chapterContent = $('#readernovel, #readerarea, .entry-content').html();
-        let processContent = await this.processImagesInContent(chapterContent);
 
         if (processImage) {
             let processContent = await this.processImagesInContent(chapterContent);
