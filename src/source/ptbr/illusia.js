@@ -117,7 +117,9 @@ class BlNovelsProvider extends BaseProvider {
                 title: novelTitle,
                 coverUrl: novelCover,
                 authors: novelAuthors,
-                volumes: volumes
+                chapters: volumes.reduce((total, volume) => total + volume.chapters.length, 0),
+                volumes: volumes.length,
+                data: volumes,
             };
 
             return novelData;
