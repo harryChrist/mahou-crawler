@@ -160,7 +160,7 @@ class BlNovelsProvider extends BaseProvider {
         // Remover elementos cujo texto comece com "Cap" ou "Traduto"
         $('p').each(function () {
             const text = $(this).text().trim();
-            if (text.startsWith('Capitulo') || text.startsWith('Capítulo') || text.startsWith('Cap.') || text.startsWith('Traduto')) {
+            if (text.startsWith('Capitulo') || text.startsWith('Capítulo') || text.startsWith('Cap.') || text.startsWith('Revisado') || text.startsWith('Traduto')) {
                 $(this).remove();
             }
         });
