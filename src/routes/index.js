@@ -11,6 +11,9 @@ module.exports = (providers) => {
     // Rota para buscar novels
     router.get('/search', async (req, res) => {
         const { type, q } = req.query;
+        if (!q || !type) {
+            return res.status(400).json({ error: 'Missing required parameters'  });
+        }
         try {
             const provider = providers[type.toLowerCase()];
             if (!provider) {
