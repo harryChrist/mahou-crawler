@@ -77,10 +77,11 @@ class BlNovelsProvider extends BaseProvider {
 
                     let chapterData = {
                         capitulo: chapterNum,
-                        name: chapterTitle.includes('–') || chapterTitle.includes('-')
-                            ? chapterTitle.replace(/^[^–-]*[-–]\s*/, '').trim()
-                            : '',
-
+                        name: chapterTitle.includes(':')
+                            ? chapterTitle.replace(/^[^:]*:\s*/, '').trim() // Caso haja ":", pega tudo após o primeiro ":"
+                            : chapterTitle.includes('-')
+                            ? chapterTitle.replace(/^[^-]*-\s*/, '').trim() // Caso não haja ":", mas tenha "-", pega após o "-"
+                            : chapterTitle, // Caso não tenha ":" nem "-", mantém o título original
                         url: chapterUrl,
                         index: parseInt(capMatch ? capMatch[2] : extraMatch ? extraMatch[2] : '', 10),
                         volume: volumeMatch ? parseInt(volumeMatch[2], 10) : null
