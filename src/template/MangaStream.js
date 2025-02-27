@@ -164,7 +164,7 @@ class MangaStream extends BaseProvider {
     }
 
     async downloadChapterBody(url, processImage = false) {
-        const response = await axios.get(this.getFullUrl(url));
+        const response = await axiosInstance.get(this.getFullUrl(url));
         const html = response.data;
         const $ = cheerio.load(html);
 
