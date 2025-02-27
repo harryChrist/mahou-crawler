@@ -1,13 +1,20 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
+const https = require('https');
 const BaseProvider = require("@/template/BaseProvider");
+
+const axiosInstance = axios.create({
+    httpsAgent: new https.Agent({
+        rejectUnauthorized: false // Ignora a verificação do certificado
+    })
+});
 
 class MangaStream extends BaseProvider {
     is_template = true;
     async searchNovel(query) {
         try {
             const searchUrl = this.searchUrl.replace('%s', query);
-            const { data } = await axios.get(searchUrl);
+            const { data } = await axiosInstance.get(searchUrl);
             const $ = cheerio.load(data);
             const novelDetails = [];
 
@@ -42,7 +49,7 @@ class MangaStream extends BaseProvider {
 
     async readNovelInfo(novelUrl) {
         try {
-            const { data } = await axios.get(this.getFullUrl(novelUrl));
+            const { data } = await axiosInstance.get(this.getFullUrl(novelUrl));
             const $ = cheerio.load(data);
     
             // Extraindo Informações extras
