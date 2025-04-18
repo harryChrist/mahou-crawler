@@ -13,10 +13,21 @@ class NovelFull extends BaseProvider {
             const $ = cheerio.load(data);
             const searchResults = [];
 
-            $('.list .list-novel .row h3[class*="title"] > a').each((index, element) => {
-                const title = $(element).attr('title') || $(element).text().trim();
-                const url = $(element).attr('href');
-                searchResults.push({ title, url });
+            $('.list-novel .row').each((index, element) => {
+                const titleElement = $(element).find('.novel-title a');
+                const title = titleElement.attr('title') || titleElement.text().trim();
+                const url = titleElement.attr('href');
+                const author = $(element).find('.author').text().trim().replace(' ', '');
+                const cover = $(element).find('.cover').attr('src');
+                const chapter = $(element).find('.chapter-title').text().trim();
+
+                searchResults.push({
+                    title,
+                    url,
+                    author,
+                    cover,
+                    chapter
+                });
             });
 
             return searchResults;
@@ -174,10 +185,28 @@ class NovelFull extends BaseProvider {
         try {
             const { data } = await axios.get(this.getFullUrl(url));
             const $ = cheerio.load(data);
-            const chapterBody = $('#chr-content, #chapter-content').html();
+            
+            // Get the chapter content container
+            const chapterContainer = $('#chr-content, #chapter-content');
+            
+            // Remove divs containing script tags
+            chapterContainer.find('div').each((_, element) => {
+                if ($(element).find('script').length > 0) {
+                    $(element).remove();
+                }
+            });
+
+            // Remove divs with unlock-buttons class
+            chapterContainer.find('div.unlock-buttons').remove();
+            
+            // Remove elements with btn btn-unlock btn-block class
+            chapterContainer.find('.btn.btn-unlock.btn-block').remove();
+
+            // Get the cleaned HTML content
+            const chapterBody = chapterContainer.html();
 
             let processedContent = processImage ? await this.processImagesInContent(chapterBody) : chapterBody;
-            return { content: processedContent.replace(/"/g, "'").replace(/\n/g, '') };
+            return { content: processedContent.replace(/"/g, "'").replace(/\n/g, '').trim() };
         } catch (error) {
             console.error('Error downloading chapter body:', error.message);
             throw error;
