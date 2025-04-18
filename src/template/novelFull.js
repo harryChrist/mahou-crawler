@@ -80,6 +80,7 @@ class NovelFull extends BaseProvider {
             let specialChapterCount = 0;
             let glossaryCount = 0;
             let currentVolume = 0;
+            let volumes = {};
 
             // Iterar sobre cada row no panel-body
             $('.panel-body .row').each((rowIndex, row) => {
@@ -154,7 +155,7 @@ class NovelFull extends BaseProvider {
                             volume = currentVolume;
                         }
 
-                        chapters.push({
+                        const chapter = {
                             capitulo: isGlossary ? `Glossary ${glossaryCount}` :
                                 isSpecialChapter ? `${chapterTitle} (${chapterNumber})` :
                                     `Vol. ${volume} Cap. ${chapterNumber}`,
@@ -162,9 +163,26 @@ class NovelFull extends BaseProvider {
                             url: chapterUrl,
                             index: chapterNumber,
                             volume: volume
-                        });
+                        };
+
+                        // Criar ou atualizar o volume
+                        if (!volumes[volume]) {
+                            volumes[volume] = {
+                                name: `Volume ${volume}`,
+                                slug: `Volume-${volume}`,
+                                chapters: []
+                            };
+                        }
+                        volumes[volume].chapters.push(chapter);
                     });
                 });
+            });
+
+            // Converter o objeto de volumes em array
+            const volumesArray = Object.values(volumes).sort((a, b) => {
+                const volA = parseInt(a.name.split(' ')[1]);
+                const volB = parseInt(b.name.split(' ')[1]);
+                return volA - volB;
             });
 
             return {
@@ -177,7 +195,7 @@ class NovelFull extends BaseProvider {
                 genres,
                 tags,
                 chapters: chapters.length,
-                data: chapters
+                data: volumesArray
             };
         } catch (error) {
             console.error('Error reading novel info:', error.message);
