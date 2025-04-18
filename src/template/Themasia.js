@@ -149,38 +149,53 @@ class ThemasiaTemplate extends BaseProvider {
     }
 
     async downloadChapterBody(url, processImage = false) {
-        const response = await axios.get(this.getFullUrl(url));
-        const html = response.data;
-        const $ = cheerio.load(html);
-
-        $('img').each(function () {
-            const src = $(this).attr('src');
-            const alt = $(this).attr('alt') || '';  // Use um valor padrão vazio se o atributo alt não estiver presente
-
-            // Remova todos os atributos
-            for (let attribute of this.attributes) {
-                $(this).removeAttr(attribute.name);
+        try {
+            const response = await axios.get(this.getFullUrl(url));
+            const html = response.data;
+            const $ = cheerio.load(html);
+    
+            // Remove unwanted elements
+            $('.epcontent.entry-content div.kln, .epcontent.entry-content div.klnmid').remove();
+            $('p').removeAttr('style').removeAttr('data-mce-style');
+    
+            // Extract chapter content
+            let chapterContent = $('.div_principal').html() || $('#readerarea').html() || '';
+    
+            // Process chapterContent to remove <noscript> and extract images
+            const $content = cheerio.load(chapterContent);
+            $content('noscript').each(function () {
+                $(this).replaceWith($(this).html());
+            });
+    
+            // Collect images from chapterContent
+            let images = [];
+            $content('img').each(function () {
+                const src = $(this).attr('src');
+                const alt = $(this).attr('alt') || '';
+                if (src) {
+                    images.push({ src, alt });
+                    // Add mx-auto class for centering
+                    $(this).addClass('mx-auto');
+                }
+            });
+    
+            // Update chapterContent with modifications
+            chapterContent = $content.html();
+    
+            if (processImage) {
+                const { html, images: processedImages } = await this.processImagesInContent(chapterContent);
+                chapterContent = html;
+                images = processedImages;
             }
-
-            // Adicione apenas os atributos src e alt
-            $(this).attr('src', src);
-            $(this).attr('alt', alt);
-
-            // Adicione a classe do Tailwind para centralizar
-            $(this).addClass('mx-auto');
-        });
-
-        // Remover elementos indesejados
-        $('.epcontent.entry-content div.kln, .epcontent.entry-content div.klnmid').remove();
-        $('p').removeAttr('style').removeAttr('data-mce-style');
-
-        let chapterContent = $('.div_principal').html();
-        if (!chapterContent) chapterContent = $('#readerarea').html();
-        if (processImage) {
-            let processContent = await this.processImagesInContent(chapterContent);
-            return { content: processContent.replace(/"/g, "'").replace(/\n/g, '') };
+    
+            return {
+                content: chapterContent.replace(/"/g, "'").replace(/\n/g, ''),
+                images
+            };
+        } catch (error) {
+            console.error('Error downloading chapter:', error);
+            return { content: '', images: [] };
         }
-        return { content: chapterContent.replace(/"/g, "'").replace(/\n/g, '') };
     }
 }
 
