@@ -39,19 +39,23 @@ class NovelFull extends BaseProvider {
 
     async readNovelInfo(novelUrl) {
         try {
-            const browser = await puppeteer.launch();
+            const browser = await puppeteer.launch({
+                headless: true,
+                args: ['--no-sandbox', '--disable-setuid-sandbox'],
+                dumpio: true
+            });
             const page = await browser.newPage();
-            
+
             // Navegar para a página
             await page.goto(this.getFullUrl(novelUrl), { waitUntil: 'networkidle0' });
-            
+
             // Esperar o conteúdo carregar
             await page.waitForSelector('.panel-body .row', { timeout: 30000 });
-            
+
             // Extrair o HTML
             const content = await page.content();
             await browser.close();
-            
+
             const $ = cheerio.load(content);
 
             const title = $('h3.title').text().trim();
@@ -60,7 +64,7 @@ class NovelFull extends BaseProvider {
             const status = $('.info-meta li:contains("Status:") a').text().trim();
             const rating = $('span[itemprop="ratingValue"]').text().trim();
             const ratingCount = $('span[itemprop="reviewCount"]').text().trim();
-            
+
             const genres = [];
             $('.info-meta li:contains("Genre:") a').each((index, element) => {
                 genres.push($(element).text().trim());
@@ -85,14 +89,14 @@ class NovelFull extends BaseProvider {
                     $(col).find('.list-chapter li').each((index, element) => {
                         const chapterTitle = $(element).find('a').attr('title') || $(element).find('.chapter-title').text().trim();
                         const chapterUrl = $(element).find('a').attr('href');
-                        
+
                         // Padrões de regex para diferentes formatos
                         const volumePattern = /Vol\.?\s*(\d+)\s*[-–]\s*Ch\.?\s*(\d+)\s*[-–]\s*(.*)/i;
                         const chapterPattern = /Chapter\s*(\d+)\s*[-–]\s*(.*)/i;
                         const numberedPattern = /^(\d+)\s*[-–]\s*(.*)/;
                         const decimalPattern = /^(\d+\.\d+)\s*[-–]\s*(.*)/;
                         const glossaryPattern = /^(Glossary|Mini Wiki|Characters and Factions)/i;
-                        
+
                         let chapterNumber;
                         let chapterName = '';
                         let volume = 0;
@@ -151,9 +155,9 @@ class NovelFull extends BaseProvider {
                         }
 
                         chapters.push({
-                            capitulo: isGlossary ? `Glossary ${glossaryCount}` : 
-                                     isSpecialChapter ? `${chapterTitle} (${chapterNumber})` : 
-                                     `Vol. ${volume} Cap. ${chapterNumber}`,
+                            capitulo: isGlossary ? `Glossary ${glossaryCount}` :
+                                isSpecialChapter ? `${chapterTitle} (${chapterNumber})` :
+                                    `Vol. ${volume} Cap. ${chapterNumber}`,
                             name: chapterName,
                             url: chapterUrl,
                             index: chapterNumber,
@@ -185,10 +189,10 @@ class NovelFull extends BaseProvider {
         try {
             const { data } = await axios.get(this.getFullUrl(url));
             const $ = cheerio.load(data);
-            
+
             // Get the chapter content container
             const chapterContainer = $('#chr-content, #chapter-content');
-            
+
             // Remove divs containing script tags
             chapterContainer.find('div').each((_, element) => {
                 if ($(element).find('script').length > 0) {
@@ -198,7 +202,7 @@ class NovelFull extends BaseProvider {
 
             // Remove divs with unlock-buttons class
             chapterContainer.find('div.unlock-buttons').remove();
-            
+
             // Remove elements with btn btn-unlock btn-block class
             chapterContainer.find('.btn.btn-unlock.btn-block').remove();
 
@@ -221,8 +225,8 @@ class NovelFull extends BaseProvider {
 
             $('div.list-novel div.row').each((index, element) => {
                 const url = $(element).find('h3.novel-title a').attr('href');
-                const imageUrl = $(element).find('img.cover').attr('src') || 
-                               $(element).find('img.cover').attr('data-src');
+                const imageUrl = $(element).find('img.cover').attr('src') ||
+                    $(element).find('img.cover').attr('data-src');
                 const title = $(element).find('h3.novel-title a').text().trim();
                 const author = $(element).find('span.author').text().trim();
                 const chapter = $(element).find('span.chr-text').text().trim();
