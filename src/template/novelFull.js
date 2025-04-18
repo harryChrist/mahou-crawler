@@ -1,6 +1,7 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const BaseProvider = require('@/template/BaseProvider');
+const puppeteer = require('puppeteer');
 
 class NovelFull extends BaseProvider {
     is_template = true;
@@ -14,7 +15,7 @@ class NovelFull extends BaseProvider {
 
             $('.list .list-novel .row h3[class*="title"] > a').each((index, element) => {
                 const title = $(element).attr('title') || $(element).text().trim();
-                const url = this.absoluteUrl($(element).attr('href'));
+                const url = $(element).attr('href');
                 searchResults.push({ title, url });
             });
 
@@ -27,37 +28,141 @@ class NovelFull extends BaseProvider {
 
     async readNovelInfo(novelUrl) {
         try {
-            const { data } = await axios.get(this.getFullUrl(novelUrl));
-            const $ = cheerio.load(data);
+            const browser = await puppeteer.launch();
+            const page = await browser.newPage();
+            
+            // Navegar para a página
+            await page.goto(this.getFullUrl(novelUrl), { waitUntil: 'networkidle0' });
+            
+            // Esperar o conteúdo carregar
+            await page.waitForSelector('.panel-body .row', { timeout: 30000 });
+            
+            // Extrair o HTML
+            const content = await page.content();
+            await browser.close();
+            
+            const $ = cheerio.load(content);
 
-            const title = this.parseTitle($);
-            const coverUrl = this.parseCover($);
-            const authors = this.parseAuthors($);
-            const volumes = [];
+            const title = $('h3.title').text().trim();
+            const coverUrl = $('.book img').attr('src') || $('.book img').attr('data-src');
+            const author = $('.info-meta li:contains("Author:") a').text().trim();
+            const status = $('.info-meta li:contains("Status:") a').text().trim();
+            const rating = $('span[itemprop="ratingValue"]').text().trim();
+            const ratingCount = $('span[itemprop="reviewCount"]').text().trim();
+            
+            const genres = [];
+            $('.info-meta li:contains("Genre:") a').each((index, element) => {
+                genres.push($(element).text().trim());
+            });
 
-            const nlIdTag = $('#rating[data-novel-id]');
-            if (!nlIdTag.length) throw new Error('No novel_id found');
+            const tags = [];
+            $('.tag-container a').each((index, element) => {
+                tags.push($(element).text().trim());
+            });
 
-            const novelId = nlIdTag.attr('data-novel-id');
-            const scriptTag = $('script').filter((i, el) => /ajaxChapterOptionUrl\s+=/.test($(el).html()));
-            const chapterUrl = scriptTag.length
-                ? `${this.homeUrl}ajax-chapter-option?novelId=${novelId}`
-                : `${this.homeUrl}ajax/chapter-archive?novelId=${novelId}`;
-            const chaptersData = await axios.get(chapterUrl);
-            const chapters$ = cheerio.load(chaptersData.data);
+            const chapters = [];
+            let lastChapterNumber = 0;
+            let specialChapterCount = 0;
+            let glossaryCount = 0;
+            let currentVolume = 0;
 
-            chapters$('ul.list-chapter > li > a[href], select > option[value]').each((index, element) => {
-                const chapterData = this.parseChapterItem(chapters$, element, index);
-                volumes.push(chapterData);
+            // Iterar sobre cada row no panel-body
+            $('.panel-body .row').each((rowIndex, row) => {
+                // Iterar sobre cada coluna na row
+                $(row).find('.col-xs-12').each((colIndex, col) => {
+                    // Iterar sobre cada capítulo na lista
+                    $(col).find('.list-chapter li').each((index, element) => {
+                        const chapterTitle = $(element).find('a').attr('title') || $(element).find('.chapter-title').text().trim();
+                        const chapterUrl = $(element).find('a').attr('href');
+                        
+                        // Padrões de regex para diferentes formatos
+                        const volumePattern = /Vol\.?\s*(\d+)\s*[-–]\s*Ch\.?\s*(\d+)\s*[-–]\s*(.*)/i;
+                        const chapterPattern = /Chapter\s*(\d+)\s*[-–]\s*(.*)/i;
+                        const numberedPattern = /^(\d+)\s*[-–]\s*(.*)/;
+                        const decimalPattern = /^(\d+\.\d+)\s*[-–]\s*(.*)/;
+                        const glossaryPattern = /^(Glossary|Mini Wiki|Characters and Factions)/i;
+                        
+                        let chapterNumber;
+                        let chapterName = '';
+                        let volume = 0;
+                        let isSpecialChapter = false;
+                        let isGlossary = false;
+
+                        // Verificar se é um glossário
+                        if (glossaryPattern.test(chapterTitle)) {
+                            isGlossary = true;
+                            glossaryCount++;
+                            chapterNumber = glossaryCount / 100; // 0.01, 0.02, etc
+                            chapterName = chapterTitle;
+                        }
+                        // Verificar se é um volume com capítulo
+                        else if (volumePattern.test(chapterTitle)) {
+                            const match = chapterTitle.match(volumePattern);
+                            volume = parseInt(match[1]);
+                            chapterNumber = parseInt(match[2]);
+                            chapterName = match[3].trim();
+                            currentVolume = volume;
+                        }
+                        // Verificar se é um capítulo numerado
+                        else if (chapterPattern.test(chapterTitle)) {
+                            const match = chapterTitle.match(chapterPattern);
+                            chapterNumber = parseInt(match[1]);
+                            chapterName = match[2].trim();
+                            volume = currentVolume;
+                        }
+                        // Verificar se é um capítulo com número decimal
+                        else if (decimalPattern.test(chapterTitle)) {
+                            const match = chapterTitle.match(decimalPattern);
+                            chapterNumber = parseFloat(match[1]);
+                            chapterName = match[2].trim();
+                            volume = Math.floor(chapterNumber);
+                        }
+                        // Verificar se é um capítulo apenas numerado
+                        else if (numberedPattern.test(chapterTitle)) {
+                            const match = chapterTitle.match(numberedPattern);
+                            chapterNumber = parseInt(match[1]);
+                            chapterName = match[2].trim();
+                            volume = currentVolume;
+                        }
+                        // Verificar se é um capítulo especial (Prologue, Epilogue, etc)
+                        else if (/^(Prologue|Epilogue|Illustrations)/i.test(chapterTitle)) {
+                            isSpecialChapter = true;
+                            specialChapterCount++;
+                            chapterNumber = specialChapterCount / 10; // 0.1, 0.2, etc
+                            chapterName = chapterTitle;
+                        }
+                        // Caso não se encaixe em nenhum padrão
+                        else {
+                            lastChapterNumber++;
+                            chapterNumber = lastChapterNumber;
+                            chapterName = chapterTitle;
+                            volume = currentVolume;
+                        }
+
+                        chapters.push({
+                            capitulo: isGlossary ? `Glossary ${glossaryCount}` : 
+                                     isSpecialChapter ? `${chapterTitle} (${chapterNumber})` : 
+                                     `Vol. ${volume} Cap. ${chapterNumber}`,
+                            name: chapterName,
+                            url: chapterUrl,
+                            index: chapterNumber,
+                            volume: volume
+                        });
+                    });
+                });
             });
 
             return {
                 title,
                 coverUrl,
-                authors,
-                volumes: volumes.length,
-                data: volumes,
-                chapters: volumes.reduce((sum, vol) => sum + vol.chapters.length, 0)
+                author,
+                status,
+                rating: parseFloat(rating),
+                ratingCount: parseInt(ratingCount),
+                genres,
+                tags,
+                chapters: chapters.length,
+                data: chapters
             };
         } catch (error) {
             console.error('Error reading novel info:', error.message);
@@ -122,7 +227,7 @@ class NovelFull extends BaseProvider {
     parseCover($) {
         const coverTag = $('.book img');
         if (coverTag.length) {
-            return this.absoluteUrl(coverTag.attr('data-src') || coverTag.attr('src'));
+            return coverTag.attr('data-src') || coverTag.attr('src');
         }
         throw new Error('Cover not found');
     }
@@ -139,7 +244,7 @@ class NovelFull extends BaseProvider {
         return {
             id,
             title: $(element).text().trim(),
-            url: this.absoluteUrl($(element).attr('href') || $(element).val()),
+            url: $(element).attr('href') || $(element).val(),
         };
     }
 }
