@@ -41,8 +41,8 @@ class NovelFull extends BaseProvider {
         try {
             const browser = await puppeteer.launch({
                 headless: true,
-                args: ['--no-sandbox', '--disable-setuid-sandbox'],
-                dumpio: true
+                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+                dumpio: false // Disable verbose Chrome logs
             });
             const page = await browser.newPage();
 
