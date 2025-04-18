@@ -77,6 +77,10 @@ class BaseProvider {
     async downloadChapterBody(url) {
         throw new Error('Method "downloadChapterBody" should be implemented');
     }
+
+    async getLatestReleases() {
+        throw new Error('Method "getLatestReleases" should be implemented');
+    }
 }
 
 module.exports = BaseProvider;

@@ -40,8 +40,8 @@ class NovelFull extends BaseProvider {
 
             const novelId = nlIdTag.attr('data-novel-id');
             const scriptTag = $('script').filter((i, el) => /ajaxChapterOptionUrl\s+=/.test($(el).html()));
-            const chapterUrl = scriptTag.length 
-                ? `${this.homeUrl}ajax-chapter-option?novelId=${novelId}` 
+            const chapterUrl = scriptTag.length
+                ? `${this.homeUrl}ajax-chapter-option?novelId=${novelId}`
                 : `${this.homeUrl}ajax/chapter-archive?novelId=${novelId}`;
             const chaptersData = await axios.get(chapterUrl);
             const chapters$ = cheerio.load(chaptersData.data);
@@ -70,11 +70,43 @@ class NovelFull extends BaseProvider {
             const { data } = await axios.get(this.getFullUrl(url));
             const $ = cheerio.load(data);
             const chapterBody = $('#chr-content, #chapter-content').html();
-            
+
             let processedContent = processImage ? await this.processImagesInContent(chapterBody) : chapterBody;
             return { content: processedContent.replace(/"/g, "'").replace(/\n/g, '') };
         } catch (error) {
             console.error('Error downloading chapter body:', error.message);
+            throw error;
+        }
+    }
+
+    async getLatestReleases() {
+        try {
+            const { data } = await axios.get(`${this.baseUrl}sort/latest`);
+            const $ = cheerio.load(data);
+            const latestReleases = [];
+
+            $('div.list-novel div.row').each((index, element) => {
+                const url = $(element).find('h3.novel-title a').attr('href');
+                const imageUrl = $(element).find('img.cover').attr('src') || 
+                               $(element).find('img.cover').attr('data-src');
+                const title = $(element).find('h3.novel-title a').text().trim();
+                const author = $(element).find('span.author').text().trim();
+                const chapter = $(element).find('span.chr-text').text().trim();
+                const isHot = $(element).find('span.label-hot').length > 0;
+
+                latestReleases.push({
+                    url,
+                    title,
+                    author,
+                    chapter,
+                    imageUrl,
+                    isHot
+                });
+            });
+
+            return latestReleases;
+        } catch (error) {
+            console.error('Error getting latest releases:', error.message);
             throw error;
         }
     }

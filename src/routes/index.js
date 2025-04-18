@@ -76,6 +76,20 @@ module.exports = (providers) => {
         res.status(200).json(providerList);
     });
 
+    // Rota para obter os últimos lançamentos
+    router.get('/latest', async (req, res) => {
+        const { type } = req.query;
+        try {
+            const provider = providers[type.toLowerCase()];
+            if (!provider) {
+                return res.status(404).json({ error: 'Provider not found' });
+            }
+            const results = await provider.getLatestReleases();
+            res.status(200).json(results);
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
 
     return router;
 };
