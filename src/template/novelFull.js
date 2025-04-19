@@ -237,7 +237,7 @@ class NovelFull extends BaseProvider {
 
     async getLatestReleases() {
         try {
-            const { data } = await axios.get(`${this.baseUrl}sort/top-view-novel`);
+            const { data } = await axios.get(`${this.baseUrl}sort/latest`);
             const $ = cheerio.load(data);
             const latestReleases = [];
 
