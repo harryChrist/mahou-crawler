@@ -11,6 +11,7 @@
   "description": "",
   "dependencies": {
     "@google/generative-ai": "^0.16.0",
+    "adm-zip": "^0.5.16",
     "axios": "^1.7.3",
     "body-parser": "^1.20.2",
     "cheerio": "^1.0.0",
@@ -21,7 +22,8 @@
     "helmet": "^7.1.0",
     "module-alias": "^2.2.3",
     "node-html-parser": "^6.1.13",
-    "puppeteer": "^24.6.1"
+    "puppeteer": "^24.6.1",
+    "sharp": "^0.34.1"
   },
   "_moduleAliases": {
     "@": "src"

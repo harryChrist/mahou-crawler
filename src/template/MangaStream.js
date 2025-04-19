@@ -197,6 +197,36 @@ class MangaStream extends BaseProvider {
         }
         return { content: chapterContent.replace(/"/g, "'").replace(/\n/g, '') };
     }
+
+    async getLatestReleases() {
+        try {
+            const { data } = await axiosInstance.get(`${this.baseUrl}series/?status=&type=&order=update`);
+            const $ = cheerio.load(data);
+            const latestReleases = [];
+
+            $('.listupd .maindet').each((index, element) => {
+                const url = $(element).find('.mdthumb a').attr('href');
+                const imageUrl = $(element).find('.mdthumb img').attr('src');
+                const title = $(element).find('.mdinfo h2 a').text().trim();
+                const chapter = $(element).find('.nchapter a').text().trim();
+
+                // Only add to results if all required fields are present and not empty
+                if (url && title && chapter) {
+                    latestReleases.push({
+                        url,
+                        title,
+                        chapter,
+                        imageUrl
+                    });
+                }
+            });
+
+            return latestReleases;
+        } catch (error) {
+            console.error('Error getting latest releases:', error.message);
+            throw error;
+        }
+    }
 }
 
 module.exports = MangaStream;

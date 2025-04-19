@@ -47,7 +47,7 @@ class NovelFull extends BaseProvider {
             const page = await browser.newPage();
 
             // Navegar para a página
-            await page.goto(this.getFullUrl(novelUrl), { waitUntil: 'networkidle0' });
+            await page.goto(this.getFullUrl(novelUrl) + '#tab-chapters-title', { waitUntil: 'networkidle0' });
 
             // Esperar o conteúdo carregar
             await page.waitForSelector('.panel-body .row', { timeout: 30000 });
@@ -237,27 +237,36 @@ class NovelFull extends BaseProvider {
 
     async getLatestReleases() {
         try {
-            const { data } = await axios.get(`${this.baseUrl}sort/latest`);
+            const { data } = await axios.get(`${this.baseUrl}sort/top-view-novel`);
             const $ = cheerio.load(data);
             const latestReleases = [];
 
             $('div.list-novel div.row').each((index, element) => {
                 const url = $(element).find('h3.novel-title a').attr('href');
-                const imageUrl = $(element).find('img.cover').attr('src') ||
+                let imageUrl = $(element).find('img.cover').attr('src') ||
                     $(element).find('img.cover').attr('data-src');
+                
+                // Process image URL to replace novel_200_89 with novel
+                if (imageUrl) {
+                    imageUrl = imageUrl.replace(/novel_\d+_\d+/, 'novel');
+                }
+
                 const title = $(element).find('h3.novel-title a').text().trim();
                 const author = $(element).find('span.author').text().trim();
                 const chapter = $(element).find('span.chr-text').text().trim();
                 const isHot = $(element).find('span.label-hot').length > 0;
 
-                latestReleases.push({
-                    url,
-                    title,
-                    author,
-                    chapter,
-                    imageUrl,
-                    isHot
-                });
+                // Only add to results if all required fields are present and not empty
+                if (url && title && author && chapter) {
+                    latestReleases.push({
+                        url,
+                        title,
+                        author,
+                        chapter,
+                        imageUrl,
+                        isHot
+                    });
+                }
             });
 
             return latestReleases;
