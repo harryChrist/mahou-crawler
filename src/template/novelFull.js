@@ -58,12 +58,13 @@ class NovelFull extends BaseProvider {
 
             const $ = cheerio.load(content);
 
-            const title = $('h3.title').text().trim();
+            const title = $('h3.title').first().text().trim();
             const coverUrl = $('.book img').attr('src') || $('.book img').attr('data-src');
             const author = $('.info-meta li:contains("Author:") a').text().trim();
             const status = $('.info-meta li:contains("Status:") a').text().trim();
             const rating = $('span[itemprop="ratingValue"]').text().trim();
             const ratingCount = $('span[itemprop="reviewCount"]').text().trim();
+            const synopsis = $('.desc-text[itemprop="description"]').text().trim();
 
             const genres = [];
             $('.info-meta li:contains("Genre:") a').each((index, element) => {
@@ -189,13 +190,14 @@ class NovelFull extends BaseProvider {
                 title,
                 coverUrl,
                 author,
+                synopsis,
                 status,
                 rating: parseFloat(rating),
                 ratingCount: parseInt(ratingCount),
                 genres,
                 tags,
                 chapters: chapters.length,
-                data: volumesArray
+                data: volumesArray,
             };
         } catch (error) {
             console.error('Error reading novel info:', error.message);
