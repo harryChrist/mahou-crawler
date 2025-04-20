@@ -239,36 +239,44 @@ class NovelFull extends BaseProvider {
 
     async getLatestReleases() {
         try {
-            const { data } = await axios.get(`${this.baseUrl}sort/latest`);
-            const $ = cheerio.load(data);
+            // Make concurrent requests for both pages
+            const [page1Response, page2Response] = await Promise.all([
+                axios.get(`${this.baseUrl}sort/latest?page=1`),
+                axios.get(`${this.baseUrl}sort/latest?page=2`)
+            ]);
+
             const latestReleases = [];
 
-            $('div.list-novel div.row').each((index, element) => {
-                const url = $(element).find('h3.novel-title a').attr('href');
-                let imageUrl = $(element).find('img.cover').attr('src') ||
-                    $(element).find('img.cover').attr('data-src');
-                
-                // Process image URL to replace novel_200_89 with novel
-                if (imageUrl) {
-                    imageUrl = imageUrl.replace(/novel_\d+_\d+/, 'novel');
-                }
+            // Process both pages
+            [page1Response.data, page2Response.data].forEach(data => {
+                const $ = cheerio.load(data);
+                $('div.list-novel div.row').each((index, element) => {
+                    const url = $(element).find('h3.novel-title a').attr('href');
+                    let imageUrl = $(element).find('img.cover').attr('src') ||
+                        $(element).find('img.cover').attr('data-src');
+                    
+                    // Process image URL to replace novel_200_89 with novel
+                    if (imageUrl) {
+                        imageUrl = imageUrl.replace(/novel_\d+_\d+/, 'novel');
+                    }
 
-                const title = $(element).find('h3.novel-title a').text().trim();
-                const author = $(element).find('span.author').text().trim();
-                const chapter = $(element).find('span.chr-text').text().trim();
-                const isHot = $(element).find('span.label-hot').length > 0;
+                    const title = $(element).find('h3.novel-title a').text().trim();
+                    const author = $(element).find('span.author').text().trim();
+                    const chapter = $(element).find('span.chr-text').text().trim();
+                    const isHot = $(element).find('span.label-hot').length > 0;
 
-                // Only add to results if all required fields are present and not empty
-                if (url && title && author && chapter) {
-                    latestReleases.push({
-                        url,
-                        title,
-                        author,
-                        chapter,
-                        imageUrl,
-                        isHot
-                    });
-                }
+                    // Only add to results if all required fields are present and not empty
+                    if (url && title && author && chapter) {
+                        latestReleases.push({
+                            url,
+                            title,
+                            author,
+                            chapter,
+                            imageUrl,
+                            isHot
+                        });
+                    }
+                });
             });
 
             return latestReleases;
