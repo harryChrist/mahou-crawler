@@ -1,9 +1,10 @@
 const ThemasiaTemplate = require('@/template/Themasia.js');
+const BaseProvider = require('@/providers/BaseProvider');
 
-class TsondokuProvider extends ThemasiaTemplate {
+class TsondokuProvider extends BaseProvider {
     constructor() {
-        super('tsondoku', 'https://tsundoku.com.br/');
-        this.searchUrl = `${this.baseUrl}?s=%s`;
+        super('tsondoku', 'https://tsondoku.com', 'novel');
+        this.searchUrl = `${this.baseUrl}/novels?titulo=%s`;
     }
 }
 

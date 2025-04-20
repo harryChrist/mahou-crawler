@@ -2,10 +2,15 @@ const cheerio = require('cheerio');
 const axios = require('axios');
 
 class BaseProvider {
-    constructor(name, baseUrl) {
+    constructor(name, baseUrl, type = 'novel') {
         this.name = name;
         this.baseUrl = baseUrl;
+        this.type = type; // 'novel' or 'manga'
         this.cleaner = { badTags: [] };
+    }
+
+    getType() {
+        return this.type;
     }
 
     slugifyString(text) {

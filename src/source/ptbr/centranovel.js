@@ -1,10 +1,11 @@
 const MangaStream = require('@/template/MangaStream');
+const BaseProvider = require('@/template/BaseProvider');
 
-class CentralNovelProvider extends MangaStream {
+class CentraNovelProvider extends BaseProvider {
     constructor() {
-        super('centralnovel', 'https://centralnovel.com/');
-        this.searchUrl = `${this.baseUrl}?s=%s`;
+        super('centranovel', 'https://centranovel.com', 'novel');
+        this.searchUrl = `${this.baseUrl}/novels?titulo=%s`;
     }
 }
 
-module.exports = new CentralNovelProvider();
+module.exports = new CentraNovelProvider();

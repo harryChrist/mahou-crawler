@@ -4,7 +4,7 @@ const BaseProvider = require('@/template/BaseProvider');  // Assumindo que BaseP
 
 class NovelManiaProvider extends BaseProvider {
     constructor() {
-        super('novelmania', 'https://novelmania.com.br');
+        super('novelmania', 'https://novelmania.com.br', 'novel');
         this.searchUrl = `${this.baseUrl}/novels?titulo=%s`;
     }
 

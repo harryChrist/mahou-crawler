@@ -2,10 +2,10 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const BaseProvider = require('@/template/BaseProvider');  // Assumindo que BaseProvider é uma classe base similar a Crawler no Python
 
-class BlNovelsProvider extends BaseProvider {
+class BlNovelProvider extends BaseProvider {
     constructor() {
-        super('blnovels', 'https://blnovels.net/');
-        this.searchUrl = `${this.baseUrl}?s=%s&post_type=wp-manga`;
+        super('blnovel', 'https://blnovel.com', 'novel');
+        this.searchUrl = `${this.baseUrl}/novels?titulo=%s`;
     }
 
     initialize() {
@@ -195,4 +195,4 @@ class BlNovelsProvider extends BaseProvider {
 
 }
 
-module.exports = new BlNovelsProvider();
+module.exports = new BlNovelProvider();
