@@ -239,16 +239,18 @@ class NovelFull extends BaseProvider {
 
     async getLatestReleases() {
         try {
-            // Make concurrent requests for both pages
-            const [page1Response, page2Response] = await Promise.all([
+            // Make concurrent requests for all pages
+            const [page1Response, page2Response, page3Response, page4Response] = await Promise.all([
                 axios.get(`${this.baseUrl}sort/latest?page=1`),
-                axios.get(`${this.baseUrl}sort/latest?page=2`)
+                axios.get(`${this.baseUrl}sort/latest?page=2`),
+                axios.get(`${this.baseUrl}sort/latest?page=3`),
+                axios.get(`${this.baseUrl}sort/latest?page=4`)
             ]);
 
             const latestReleases = [];
 
-            // Process both pages
-            [page1Response.data, page2Response.data].forEach(data => {
+            // Process all pages
+            [page1Response.data, page2Response.data, page3Response.data, page4Response.data].forEach(data => {
                 const $ = cheerio.load(data);
                 $('div.list-novel div.row').each((index, element) => {
                     const url = $(element).find('h3.novel-title a').attr('href');
