@@ -5,7 +5,7 @@ const BaseProvider = require('@/template/BaseProvider');  // Assumindo que BaseP
 class IllusiaProvider extends BaseProvider {
     constructor() {
         super('illusia', 'https://illusia.com.br', 'novel');
-        this.searchUrl = `${this.baseUrl}/novels?titulo=%s`;
+        this.searchUrl = `${this.baseUrl}?s=%s&post_type=fcn_story&sentence=0&orderby=modified&order=desc&age_rating=Any&story_status=Any&miw=0&maw=0&genres=&fandoms=&characters=&tags=&warnings=&authors=&ex_genres=&ex_fandoms=&ex_characters=&ex_tags=&ex_warnings=&ex_authors=`;
     }
 
     initialize() {
