@@ -49,8 +49,12 @@ class NovelFull extends BaseProvider {
             // Navegar para a página
             await page.goto(this.getFullUrl(novelUrl) + '#tab-chapters-title', { waitUntil: 'networkidle0' });
 
-            // Esperar o conteúdo carregar
-            await page.waitForSelector('.panel-body .row', { timeout: 30000 });
+            await Promise.all([
+                page.waitForSelector('h3.title', { timeout: 30000 }), // Title
+                page.waitForSelector('.desc-text[itemprop="description"]', { timeout: 30000 }), // Synopsis
+                page.waitForSelector('.panel-body .row', { timeout: 30000 }), // Chapters
+                page.waitForSelector('.book img', { timeout: 30000 }) // Cover
+            ]);
 
             // Extrair o HTML
             const content = await page.content();
@@ -105,6 +109,15 @@ class NovelFull extends BaseProvider {
                         let isSpecialChapter = false;
                         let isGlossary = false;
 
+                        // Extract chapter number from URL if available
+                        let urlChapterNumber = null;
+                        if (chapterUrl) {
+                            const urlMatch = chapterUrl.match(/chapter-(\d+)/i);
+                            if (urlMatch) {
+                                urlChapterNumber = parseInt(urlMatch[1]);
+                            }
+                        }
+
                         // Verificar se é um glossário
                         if (glossaryPattern.test(chapterTitle)) {
                             isGlossary = true;
@@ -123,7 +136,8 @@ class NovelFull extends BaseProvider {
                         // Verificar se é um capítulo numerado
                         else if (chapterPattern.test(chapterTitle)) {
                             const match = chapterTitle.match(chapterPattern);
-                            chapterNumber = parseInt(match[1]);
+                            // Prefer chapter number from URL if available, otherwise use title
+                            chapterNumber = urlChapterNumber || parseInt(match[1]);
                             chapterName = match[2].trim();
                             volume = currentVolume;
                         }
@@ -137,7 +151,8 @@ class NovelFull extends BaseProvider {
                         // Verificar se é um capítulo apenas numerado
                         else if (numberedPattern.test(chapterTitle)) {
                             const match = chapterTitle.match(numberedPattern);
-                            chapterNumber = parseInt(match[1]);
+                            // Prefer chapter number from URL if available, otherwise use title
+                            chapterNumber = urlChapterNumber || parseInt(match[1]);
                             chapterName = match[2].trim();
                             volume = currentVolume;
                         }
@@ -150,8 +165,13 @@ class NovelFull extends BaseProvider {
                         }
                         // Caso não se encaixe em nenhum padrão
                         else {
-                            lastChapterNumber++;
-                            chapterNumber = lastChapterNumber;
+                            // Try to use URL chapter number if available
+                            if (urlChapterNumber) {
+                                chapterNumber = urlChapterNumber;
+                            } else {
+                                lastChapterNumber++;
+                                chapterNumber = lastChapterNumber;
+                            }
                             chapterName = chapterTitle;
                             volume = currentVolume;
                         }
@@ -163,7 +183,8 @@ class NovelFull extends BaseProvider {
                             name: chapterName,
                             url: chapterUrl,
                             index: chapterNumber,
-                            volume: volume
+                            volume: volume,
+                            originalTitle: chapterTitle // Keep original title for reference
                         };
 
                         // Criar ou atualizar o volume
