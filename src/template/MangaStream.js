@@ -200,7 +200,7 @@ class MangaStream extends BaseProvider {
 
     async getLatestReleases() {
         try {
-            const { data } = await axiosInstance.get(`${this.baseUrl}series/?status=&type=&order=update`);
+            const { data } = await axiosInstance.get(`${this.baseUrl}/series/?status=&type=&order=update`);
             const $ = cheerio.load(data);
             const latestReleases = [];
 

@@ -2,7 +2,7 @@ const MangaStream = require('@/template/MangaStream');
 
 class CentraNovelProvider extends MangaStream {
     constructor() {
-        super('centranovel', 'https://centranovel.com', 'novel');
+        super('centralnovel', 'https://centralnovel.com', 'novel');
         this.searchUrl = `${this.baseUrl}/novels?titulo=%s`;
     }
 }
