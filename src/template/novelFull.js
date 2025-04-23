@@ -42,18 +42,26 @@ class NovelFull extends BaseProvider {
             const browser = await puppeteer.launch({
                 headless: true,
                 args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-                dumpio: false // Disable verbose Chrome logs
+                dumpio: false
             });
             const page = await browser.newPage();
+
+            // Extrair parâmetros da URL
+            const url = new URL(novelUrl);
+            const params = new URLSearchParams(url.search);
+            
+            // Opções de processamento de capítulos
+            const chapterMode = params.get('mode') || '1'; // 1: auto, 2: sequential, 3: url, 4: title, 5: first_number
+            const startNumber = parseInt(params.get('start_number')) || 1; // Número inicial para contagem sequencial
 
             // Navegar para a página
             await page.goto(this.getFullUrl(novelUrl) + '#tab-chapters-title', { waitUntil: 'networkidle0' });
 
             await Promise.all([
-                page.waitForSelector('h3.title', { timeout: 30000 }), // Title
-                page.waitForSelector('.desc-text[itemprop="description"]', { timeout: 30000 }), // Synopsis
-                page.waitForSelector('.panel-body .row', { timeout: 30000 }), // Chapters
-                page.waitForSelector('.book img', { timeout: 30000 }) // Cover
+                page.waitForSelector('h3.title', { timeout: 30000 }),
+                page.waitForSelector('.desc-text[itemprop="description"]', { timeout: 30000 }),
+                page.waitForSelector('.panel-body .row', { timeout: 30000 }),
+                page.waitForSelector('.book img', { timeout: 30000 })
             ]);
 
             // Extrair o HTML
@@ -61,6 +69,73 @@ class NovelFull extends BaseProvider {
             await browser.close();
 
             const $ = cheerio.load(content);
+
+            // Função para analisar padrões de numeração
+            const analyzeChapterPatterns = ($) => {
+                const stats = {
+                    totalChapters: 0,
+                    urlNumbers: [],
+                    titleNumbers: [],
+                    urlPatterns: {},
+                    titlePatterns: {},
+                    inconsistencies: []
+                };
+
+                $('.panel-body .row').each((rowIndex, row) => {
+                    $(row).find('.col-xs-12').each((colIndex, col) => {
+                        $(col).find('.list-chapter li').each((index, element) => {
+                            stats.totalChapters++;
+                            const chapterTitle = $(element).find('a').attr('title') || $(element).find('.chapter-title').text().trim();
+                            const chapterUrl = $(element).find('a').attr('href');
+
+                            // Analisar números da URL
+                            const urlMatch = chapterUrl.match(/chapter-(\d+)/i);
+                            if (urlMatch) {
+                                const urlNum = parseInt(urlMatch[1]);
+                                stats.urlNumbers.push(urlNum);
+                                stats.urlPatterns[urlNum] = (stats.urlPatterns[urlNum] || 0) + 1;
+                            }
+
+                            // Analisar números do título
+                            const titleMatch = chapterTitle.match(/Chapter\s*(\d+)/i);
+                            if (titleMatch) {
+                                const titleNum = parseInt(titleMatch[1]);
+                                stats.titleNumbers.push(titleNum);
+                                stats.titlePatterns[titleNum] = (stats.titlePatterns[titleNum] || 0) + 1;
+                            }
+
+                            // Verificar inconsistências
+                            if (urlMatch && titleMatch) {
+                                const urlNum = parseInt(urlMatch[1]);
+                                const titleNum = parseInt(titleMatch[1]);
+                                if (urlNum !== titleNum) {
+                                    stats.inconsistencies.push({
+                                        chapter: chapterTitle,
+                                        urlNumber: urlNum,
+                                        titleNumber: titleNum
+                                    });
+                                }
+                            }
+                        });
+                    });
+                });
+
+                // Calcular estatísticas
+                stats.avgUrlNumber = stats.urlNumbers.length > 0 ? 
+                    stats.urlNumbers.reduce((a, b) => a + b, 0) / stats.urlNumbers.length : 0;
+                stats.avgTitleNumber = stats.titleNumbers.length > 0 ? 
+                    stats.titleNumbers.reduce((a, b) => a + b, 0) / stats.titleNumbers.length : 0;
+
+                stats.urlNumberRange = stats.urlNumbers.length > 0 ? 
+                    Math.max(...stats.urlNumbers) - Math.min(...stats.urlNumbers) : 0;
+                stats.titleNumberRange = stats.titleNumbers.length > 0 ? 
+                    Math.max(...stats.titleNumbers) - Math.min(...stats.titleNumbers) : 0;
+
+                return stats;
+            };
+
+            // Analisar padrões antes de processar
+            const chapterStats = analyzeChapterPatterns($);
 
             const title = $('h3.title').first().text().trim();
             const coverUrl = $('.book img').attr('src') || $('.book img').attr('data-src');
@@ -81,113 +156,81 @@ class NovelFull extends BaseProvider {
             });
 
             const chapters = [];
-            let lastChapterNumber = 0;
-            let specialChapterCount = 0;
-            let glossaryCount = 0;
-            let currentVolume = 0;
+            let lastChapterNumber = startNumber - 1;
             let volumes = {};
+            let firstChapterNumber = null;
+
+            // Determinar o modo de processamento
+            let processingMode = chapterMode;
+            if (chapterMode === '1') {
+                // Usar estatísticas para determinar o melhor modo
+                if (chapterStats.inconsistencies.length === 0 && 
+                    chapterStats.urlNumbers.length > 0 && 
+                    chapterStats.urlNumberRange === chapterStats.totalChapters - 1) {
+                    processingMode = '3'; // URL numbers are consistent
+                } else if (chapterStats.inconsistencies.length === 0 && 
+                          chapterStats.titleNumbers.length > 0 && 
+                          chapterStats.titleNumberRange === chapterStats.totalChapters - 1) {
+                    processingMode = '4'; // Title numbers are consistent
+                } else {
+                    processingMode = '2'; // Fallback to sequential
+                }
+            }
 
             // Iterar sobre cada row no panel-body
             $('.panel-body .row').each((rowIndex, row) => {
-                // Iterar sobre cada coluna na row
                 $(row).find('.col-xs-12').each((colIndex, col) => {
-                    // Iterar sobre cada capítulo na lista
                     $(col).find('.list-chapter li').each((index, element) => {
                         const chapterTitle = $(element).find('a').attr('title') || $(element).find('.chapter-title').text().trim();
                         const chapterUrl = $(element).find('a').attr('href');
 
-                        // Padrões de regex para diferentes formatos
-                        const volumePattern = /Vol\.?\s*(\d+)\s*[-–]\s*Ch\.?\s*(\d+)\s*[-–]\s*(.*)/i;
-                        const chapterPattern = /Chapter\s*(\d+)\s*[-–]\s*(.*)/i;
-                        const numberedPattern = /^(\d+)\s*[-–]\s*(.*)/;
-                        const decimalPattern = /^(\d+\.\d+)\s*[-–]\s*(.*)/;
-                        const glossaryPattern = /^(Glossary|Mini Wiki|Characters and Factions)/i;
-
                         let chapterNumber;
                         let chapterName = '';
                         let volume = 0;
-                        let isSpecialChapter = false;
-                        let isGlossary = false;
 
-                        // Extract chapter number from URL if available
-                        let urlChapterNumber = null;
-                        if (chapterUrl) {
-                            const urlMatch = chapterUrl.match(/chapter-(\d+)/i);
-                            if (urlMatch) {
-                                urlChapterNumber = parseInt(urlMatch[1]);
-                            }
-                        }
-
-                        // Verificar se é um glossário
-                        if (glossaryPattern.test(chapterTitle)) {
-                            isGlossary = true;
-                            glossaryCount++;
-                            chapterNumber = glossaryCount / 100; // 0.01, 0.02, etc
-                            chapterName = chapterTitle;
-                        }
-                        // Verificar se é um volume com capítulo
-                        else if (volumePattern.test(chapterTitle)) {
-                            const match = chapterTitle.match(volumePattern);
-                            volume = parseInt(match[1]);
-                            chapterNumber = parseInt(match[2]);
-                            chapterName = match[3].trim();
-                            currentVolume = volume;
-                        }
-                        // Verificar se é um capítulo numerado
-                        else if (chapterPattern.test(chapterTitle)) {
-                            const match = chapterTitle.match(chapterPattern);
-                            // Prefer chapter number from URL if available, otherwise use title
-                            chapterNumber = urlChapterNumber || parseInt(match[1]);
-                            chapterName = match[2].trim();
-                            volume = currentVolume;
-                        }
-                        // Verificar se é um capítulo com número decimal
-                        else if (decimalPattern.test(chapterTitle)) {
-                            const match = chapterTitle.match(decimalPattern);
-                            chapterNumber = parseFloat(match[1]);
-                            chapterName = match[2].trim();
-                            volume = Math.floor(chapterNumber);
-                        }
-                        // Verificar se é um capítulo apenas numerado
-                        else if (numberedPattern.test(chapterTitle)) {
-                            const match = chapterTitle.match(numberedPattern);
-                            // Prefer chapter number from URL if available, otherwise use title
-                            chapterNumber = urlChapterNumber || parseInt(match[1]);
-                            chapterName = match[2].trim();
-                            volume = currentVolume;
-                        }
-                        // Verificar se é um capítulo especial (Prologue, Epilogue, etc)
-                        else if (/^(Prologue|Epilogue|Illustrations)/i.test(chapterTitle)) {
-                            isSpecialChapter = true;
-                            specialChapterCount++;
-                            chapterNumber = specialChapterCount / 10; // 0.1, 0.2, etc
-                            chapterName = chapterTitle;
-                        }
-                        // Caso não se encaixe em nenhum padrão
-                        else {
-                            // Try to use URL chapter number if available
-                            if (urlChapterNumber) {
-                                chapterNumber = urlChapterNumber;
-                            } else {
+                        switch (processingMode) {
+                            case '2':
+                                // Contagem sequencial simples
                                 lastChapterNumber++;
                                 chapterNumber = lastChapterNumber;
-                            }
-                            chapterName = chapterTitle;
-                            volume = currentVolume;
+                                chapterName = chapterTitle.replace(/^Chapter\s*\d+\s*[-–:]\s*/i, '').trim();
+                                break;
+
+                            case '3':
+                                // Usar número da URL
+                                const urlMatch = chapterUrl.match(/chapter-(\d+)/i);
+                                chapterNumber = urlMatch ? parseInt(urlMatch[1]) : ++lastChapterNumber;
+                                chapterName = chapterTitle.replace(/^Chapter\s*\d+\s*[-–:]\s*/i, '').trim();
+                                break;
+
+                            case '4':
+                                // Usar número do título
+                                const titleMatch = chapterTitle.match(/Chapter\s*(\d+)/i);
+                                chapterNumber = titleMatch ? parseInt(titleMatch[1]) : ++lastChapterNumber;
+                                chapterName = chapterTitle.replace(/^Chapter\s*\d+\s*[-–:]\s*/i, '').trim();
+                                break;
+
+                            case '5':
+                                // Usar primeiro número encontrado (URL ou título)
+                                const urlNum = chapterUrl.match(/chapter-(\d+)/i)?.[1];
+                                const titleNum = chapterTitle.match(/Chapter\s*(\d+)/i)?.[1];
+                                chapterNumber = urlNum ? parseInt(urlNum) : 
+                                              titleNum ? parseInt(titleNum) : 
+                                              ++lastChapterNumber;
+                                chapterName = chapterTitle.replace(/^Chapter\s*\d+\s*[-–:]\s*/i, '').trim();
+                                break;
                         }
 
                         const chapter = {
-                            capitulo: isGlossary ? `Glossary ${glossaryCount}` :
-                                isSpecialChapter ? `${chapterTitle} (${chapterNumber})` :
-                                    `Vol. ${volume} Cap. ${chapterNumber}`,
+                            capitulo: `Vol. ${volume} Cap. ${chapterNumber}`,
                             name: chapterName,
                             url: chapterUrl,
                             index: chapterNumber,
                             volume: volume,
-                            originalTitle: chapterTitle // Keep original title for reference
+                            originalTitle: chapterTitle,
+                            processingMode: processingMode
                         };
 
-                        // Criar ou atualizar o volume
                         if (!volumes[volume]) {
                             volumes[volume] = {
                                 name: `Volume ${volume}`,
@@ -219,6 +262,7 @@ class NovelFull extends BaseProvider {
                 tags,
                 chapters: chapters.length,
                 data: volumesArray,
+                mode: processingMode,
             };
         } catch (error) {
             console.error('Error reading novel info:', error.message);
