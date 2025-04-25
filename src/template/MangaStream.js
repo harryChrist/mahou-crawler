@@ -56,6 +56,13 @@ class MangaStream extends BaseProvider {
             const title = this.parseTitle($);
             const coverUrl = this.parseCover($);
             const authors = this.parseAuthors($);
+            const synopsis = $('.entry-content').text().trim();
+            const titles = $('.alter').text().trim().split(',');
+
+            const genres = [];
+            $('.genxed a').each((index, element) => {
+                genres.push($(element).text().trim());
+            });
     
             // Extraindo volumes e capítulos
             const volumes = [];
@@ -93,7 +100,10 @@ class MangaStream extends BaseProvider {
             return {
                 title,
                 coverUrl,
-                authors,
+                author: authors,
+                titles: titles,
+                genres: genres,
+                synopsis: synopsis,
                 volumes: volumes.length,
                 data: volumes,
                 chapters: volumes.reduce((sum, vol) => sum + vol.chapters.length, 0)

@@ -51,12 +51,26 @@ class IllusiaProvider extends BaseProvider {
 
             const possibleImage = $('.story__header .story__thumbnail a');
             const novelCover = possibleImage.attr('href') ? this.getFullUrl(possibleImage.attr('href')) : '';
-            console.info("Novel cover:", novelCover);
 
-            const novelAuthors = $('.author-name')
-                .map((i, el) => $(el).text().trim())
-                .get();
-            console.info("Novel author(s):", novelAuthors);
+            const novelAuthors = [];
+            $('.author').each((i, el) => {
+                console.log(i)
+                const authorName = $(el).text().trim();
+                if (authorName && !novelAuthors.includes(authorName)) {
+                    novelAuthors.push(authorName);
+                }
+            });
+
+            const synopsis = $('.story__summary').text().trim();
+
+            //generos tag-group
+            const genres = [];
+            $('.tag-group a').each((i, el) => {
+                const genre = $(el).text().trim();
+                if (genre && !genres.includes(genre)) {
+                    genres.push(genre);
+                }
+            });
 
             const volumes = [];
             $('.chapter-group').each((index, element) => {
@@ -120,7 +134,10 @@ class IllusiaProvider extends BaseProvider {
             const novelData = {
                 title: novelTitle,
                 coverUrl: novelCover,
-                authors: novelAuthors,
+                titles: [novelTitle],
+                author: novelAuthors,
+                genres: genres,
+                synopsis: synopsis,
                 chapters: volumes.reduce((total, volume) => total + volume.chapters.length, 0),
                 volumes: volumes.length,
                 data: volumes,
@@ -180,6 +197,35 @@ class IllusiaProvider extends BaseProvider {
             return { content: processContent.replace(/"/g, "'").replace(/\n/g, '') };
         }
         return { content: chapterContent.replace(/"/g, "'").replace(/\n/g, '') };
+    }
+
+    // title, url, image, chapter
+    async getLatestReleases() {
+        try {
+            const response = await axios.get(this.baseUrl + '/?s=&post_type=fcn_story&sentence=0&orderby=modified&order=desc&age_rating=Any&story_status=Any&miw=0&maw=0&genres=&fandoms=1828%2C1827&characters=&tags=&warnings=&authors=&ex_genres=&ex_fandoms=&ex_characters=&ex_tags=&ex_warnings=&ex_authors=');
+            const $ = cheerio.load(response.data);
+
+            const latestReleases = [];
+
+            $('#search-result-list .card').each((index, element) => {
+                const title = $(element).find('.card__title a').text().trim();
+                const url = $(element).find('.card__title a').attr('href');
+                const imageUrl = $(element).find('.card__image img').attr('src');
+                const chapter = $(element).find('.card__link-list-item:last-child .card__link-list-link').text().trim();
+
+                latestReleases.push({
+                    title: title,
+                    url: url,
+                    imageUrl: imageUrl,
+                    chapter: chapter
+                });
+            });
+
+            return latestReleases;
+        } catch (error) {
+            console.error("Erro ao buscar os releases mais recentes:", error.message);
+            throw error;
+        }
     }
 
 }

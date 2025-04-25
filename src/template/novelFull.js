@@ -253,7 +253,8 @@ class NovelFull extends BaseProvider {
             return {
                 title,
                 coverUrl,
-                author,
+                author: [author],
+                titles: [title],
                 synopsis,
                 status,
                 rating: parseFloat(rating),
