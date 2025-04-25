@@ -204,8 +204,8 @@ class IllusiaProvider extends BaseProvider {
         try {
             // Make concurrent requests for both pages
             const [page1Response, page2Response] = await Promise.all([
-                axios.get(this.baseUrl + '/?s=&post_type=fcn_story&sentence=0&orderby=modified&order=desc&age_rating=Any&story_status=Any&miw=0&maw=0&genres=&fandoms=1828%2C1827&characters=&tags=&warnings=&authors=&ex_genres=&ex_fandoms=&ex_characters=&ex_tags=&ex_warnings=&ex_authors='),
-                axios.get(this.baseUrl + '/page/2/?s=&post_type=fcn_story&sentence=0&orderby=modified&order=desc&age_rating=Any&story_status=Any&miw=0&maw=0&genres=&fandoms=1828%2C1827&characters=&tags=&warnings=&authors=&ex_genres=&ex_fandoms=&ex_characters=&ex_tags=&ex_warnings=&ex_authors=')
+                axios.get(this.baseUrl + '/?s=&post_type=fcn_story&sentence=0&orderby=modified&order=desc&age_rating=Any&story_status=Any&miw=0&maw=0'),
+                axios.get(this.baseUrl + '/page/2/?s=&post_type=fcn_story&sentence=0&orderby=modified&order=desc&age_rating=Any&story_status=Any&miw=0&maw=0')
             ]);
 
             const latestReleases = [];
