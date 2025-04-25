@@ -203,15 +203,17 @@ class IllusiaProvider extends BaseProvider {
     async getLatestReleases() {
         try {
             // Make concurrent requests for both pages
-            const [page1Response, page2Response] = await Promise.all([
+            const [page1Response, page2Response, page3Response, page4Response] = await Promise.all([
                 axios.get(this.baseUrl + '/?s=&post_type=fcn_story&sentence=0&orderby=modified&order=desc&age_rating=Any&story_status=Any&miw=0&maw=0'),
-                axios.get(this.baseUrl + '/page/2/?s=&post_type=fcn_story&sentence=0&orderby=modified&order=desc&age_rating=Any&story_status=Any&miw=0&maw=0')
+                axios.get(this.baseUrl + '/page/2/?s=&post_type=fcn_story&sentence=0&orderby=modified&order=desc&age_rating=Any&story_status=Any&miw=0&maw=0'),
+                axios.get(this.baseUrl + '/page/3/?s=&post_type=fcn_story&sentence=0&orderby=modified&order=desc&age_rating=Any&story_status=Any&miw=0&maw=0'),
+                axios.get(this.baseUrl + '/page/4/?s=&post_type=fcn_story&sentence=0&orderby=modified&order=desc&age_rating=Any&story_status=Any&miw=0&maw=0'),
             ]);
 
             const latestReleases = [];
 
             // Process both pages
-            [page1Response.data, page2Response.data].forEach(data => {
+            [page1Response.data, page2Response.data, page3Response.data, page4Response.data].forEach(data => {
                 const $ = cheerio.load(data);
 
                 $('#search-result-list .card').each((index, element) => {
