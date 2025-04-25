@@ -202,22 +202,32 @@ class IllusiaProvider extends BaseProvider {
     // title, url, image, chapter
     async getLatestReleases() {
         try {
-            const response = await axios.get(this.baseUrl + '/?s=&post_type=fcn_story&sentence=0&orderby=modified&order=desc&age_rating=Any&story_status=Any&miw=0&maw=0&genres=&fandoms=1828%2C1827&characters=&tags=&warnings=&authors=&ex_genres=&ex_fandoms=&ex_characters=&ex_tags=&ex_warnings=&ex_authors=');
-            const $ = cheerio.load(response.data);
+            // Make concurrent requests for both pages
+            const [page1Response, page2Response] = await Promise.all([
+                axios.get(this.baseUrl + '/?s=&post_type=fcn_story&sentence=0&orderby=modified&order=desc&age_rating=Any&story_status=Any&miw=0&maw=0&genres=&fandoms=1828%2C1827&characters=&tags=&warnings=&authors=&ex_genres=&ex_fandoms=&ex_characters=&ex_tags=&ex_warnings=&ex_authors='),
+                axios.get(this.baseUrl + '/page/2/?s=&post_type=fcn_story&sentence=0&orderby=modified&order=desc&age_rating=Any&story_status=Any&miw=0&maw=0&genres=&fandoms=1828%2C1827&characters=&tags=&warnings=&authors=&ex_genres=&ex_fandoms=&ex_characters=&ex_tags=&ex_warnings=&ex_authors=')
+            ]);
 
             const latestReleases = [];
 
-            $('#search-result-list .card').each((index, element) => {
-                const title = $(element).find('.card__title a').text().trim();
-                const url = $(element).find('.card__title a').attr('href');
-                const imageUrl = $(element).find('.card__image img').attr('src');
-                const chapter = $(element).find('.card__link-list-item:last-child .card__link-list-link').text().trim();
+            // Process both pages
+            [page1Response.data, page2Response.data].forEach(data => {
+                const $ = cheerio.load(data);
 
-                latestReleases.push({
-                    title: title,
-                    url: url,
-                    imageUrl: imageUrl,
-                    chapter: chapter
+                $('#search-result-list .card').each((index, element) => {
+                    const title = $(element).find('.card__title a').text().trim();
+                    const url = $(element).find('.card__title a').attr('href');
+                    const imageUrl = $(element).find('.card__image img').attr('src');
+                    const chapter = $(element).find('.card__link-list-item:last-child .card__link-list-link').text().trim();
+
+                    if (url && title && imageUrl && chapter) {
+                        latestReleases.push({
+                            title: title,
+                            url: url,
+                            imageUrl: imageUrl,
+                            chapter: chapter
+                        });
+                    }
                 });
             });
 
