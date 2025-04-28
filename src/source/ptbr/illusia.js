@@ -73,9 +73,12 @@ class IllusiaProvider extends BaseProvider {
             });
 
             const volumes = [];
+            
             $('.chapter-group').each((index, element) => {
                 let titulo = $(element).find('button span').text().trim() || 'Volume 0';
-                const chapters = []
+                const chapters = [];
+                const usedIndices = new Set(); // Track used indices within this volume
+                let volumeChapterCounter = 1; // Volume-specific counter for handling duplicates
 
                 // Extract volume number from title if it exists
                 const volumeMatch = titulo.match(/(Volume\.|Vol\.|Volume|Volúme|Parte)\s*(\d+)/i);
@@ -84,29 +87,42 @@ class IllusiaProvider extends BaseProvider {
                 const totalGroups = $('.chapter-group').length;
                 const volumeNumber = totalGroups === 1 ? 0 : (index + 1);
 
-                $(element).find('.chapter-group__list-item').each((index, element) => {
-                    const chapterUrl = $(element).find('a').attr('href');
-                    const chapterNum = $(element).find('a').text().trim();
-                    const chapterTitle = $(element).find('a').text().trim();
+                $(element).find('.chapter-group__list-item').each((chIndex, chElement) => {
+                    const chapterUrl = $(chElement).find('a').attr('href');
+                    const chapterNum = $(chElement).find('a').text().trim();
+                    const chapterTitle = $(chElement).find('a').text().trim();
+
+                    // Skip non-chapter elements
+                    if (!chapterUrl || $(chElement).hasClass('_folding-toggle')) return;
 
                     const capMatch = chapterNum.match(/(Cap\.|Chap\.|Capítulo|Capitulo)\s*(\d+)/i);
                     const extraMatch = chapterNum.match(/(Extra) (\d+)/);
-
-                    if (!chapterUrl) return;
+                    
+                    // Try to extract natural chapter number, defaulting to sequential counter
+                    let chapterIndex = parseInt(capMatch ? capMatch[2] : extraMatch ? extraMatch[2] : '', 10);
+                    
+                    // If no valid number was found or number is already used in this volume, use sequential counter
+                    if (isNaN(chapterIndex) || usedIndices.has(chapterIndex)) {
+                        chapterIndex = volumeChapterCounter++;
+                    } else {
+                        // Valid number, mark it as used
+                        usedIndices.add(chapterIndex);
+                        volumeChapterCounter = Math.max(volumeChapterCounter, chapterIndex + 1);
+                    }
 
                     let chapterData = {
                         capitulo: chapterNum,
-                        name: chapterTitle.includes(':')
-                            ? chapterTitle.replace(/^[^:]*:\s*/, '').trim()
-                            : chapterTitle.includes('-')
-                            ? chapterTitle.replace(/^[^-]*-\s*/, '').trim()
-                            : chapterTitle,
+                        name: chapterTitle,//.includes(':')
+                            //? chapterTitle.replace(/^[^:]*:\s*/, '').trim()
+                            //: chapterTitle.includes('-')
+                            //? chapterTitle.replace(/^[^-]*-\s*/, '').trim()
+                            //: chapterTitle,
                         url: chapterUrl,
-                        index: parseInt(capMatch ? capMatch[2] : extraMatch ? extraMatch[2] : '', 10),
+                        index: chapterIndex,
                         volume: volumeNumber
                     };
                     chapters.push(chapterData);
-                })
+                });
 
                 volumes.push({
                     name: titulo,
