@@ -77,7 +77,12 @@ class IllusiaProvider extends BaseProvider {
                 let titulo = $(element).find('button span').text().trim() || 'Volume 0';
                 const chapters = []
 
-                const volumeMatch = titulo.match(/(Volume\.|Vol\.|Volume|Volúme)\s*(\d+)/i);
+                // Extract volume number from title if it exists
+                const volumeMatch = titulo.match(/(Volume\.|Vol\.|Volume|Volúme|Parte)\s*(\d+)/i);
+                
+                // If there's only one chapter group, keep volume as 0, otherwise number sequentially from 1
+                const totalGroups = $('.chapter-group').length;
+                const volumeNumber = totalGroups === 1 ? 0 : (index + 1);
 
                 $(element).find('.chapter-group__list-item').each((index, element) => {
                     const chapterUrl = $(element).find('a').attr('href');
@@ -92,13 +97,13 @@ class IllusiaProvider extends BaseProvider {
                     let chapterData = {
                         capitulo: chapterNum,
                         name: chapterTitle.includes(':')
-                            ? chapterTitle.replace(/^[^:]*:\s*/, '').trim() // Caso haja ":", pega tudo após o primeiro ":"
+                            ? chapterTitle.replace(/^[^:]*:\s*/, '').trim()
                             : chapterTitle.includes('-')
-                            ? chapterTitle.replace(/^[^-]*-\s*/, '').trim() // Caso não haja ":", mas tenha "-", pega após o "-"
-                            : chapterTitle, // Caso não tenha ":" nem "-", mantém o título original
+                            ? chapterTitle.replace(/^[^-]*-\s*/, '').trim()
+                            : chapterTitle,
                         url: chapterUrl,
                         index: parseInt(capMatch ? capMatch[2] : extraMatch ? extraMatch[2] : '', 10),
-                        volume: volumeMatch ? parseInt(volumeMatch[2], 10) : null
+                        volume: volumeNumber
                     };
                     chapters.push(chapterData);
                 })
@@ -129,7 +134,6 @@ class IllusiaProvider extends BaseProvider {
                     }
                 }
             });
-
 
             const novelData = {
                 title: novelTitle,
