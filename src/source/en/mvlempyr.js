@@ -110,35 +110,53 @@ class MvlEmpyrProvider extends BaseProvider {
         }
     }
 
+    // GET na API com nova tentativa em erro 5xx/rede — um 500 passageiro (visto na prática)
+    // não pode derrubar a listagem inteira de uma obra. Erro 4xx não adianta repetir.
+    async apiGet(path, params, attempts = 3) {
+        for (let attempt = 1; ; attempt++) {
+            try {
+                return await axios.get(`${this.apiBase}${path}`, { params });
+            } catch (error) {
+                const status = error.response?.status;
+                if (attempt >= attempts || (status && status < 500)) throw error;
+                await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+            }
+        }
+    }
+
     async fetchChapters(novelCode) {
         const tagId = this.tagIdForNovelCode(novelCode);
         const perPage = 500;
 
         // `total-chapters` do catálogo pode estar desatualizado (visto na prática: catálogo
         // dizia 84, existiam 94 posts de verdade) — usamos o X-WP-Total real da 1ª página.
-        const firstPage = await axios.get(`${this.apiBase}/posts`, {
-            params: { tags: tagId, per_page: perPage, page: 1 }
-        });
+        const firstPage = await this.apiGet('/posts', { tags: tagId, per_page: perPage, page: 1 });
         const totalPages = Math.max(1, Math.ceil(Number(firstPage.headers['x-wp-total'] || firstPage.data.length) / perPage));
 
         const pageRequests = [Promise.resolve(firstPage)];
         for (let page = 2; page <= totalPages; page++) {
-            pageRequests.push(
-                axios.get(`${this.apiBase}/posts`, {
-                    params: { tags: tagId, per_page: perPage, page }
-                })
-            );
+            pageRequests.push(this.apiGet('/posts', { tags: tagId, per_page: perPage, page }));
         }
 
         const responses = await Promise.all(pageRequests);
-        const posts = responses.flatMap(response => response.data);
 
-        return posts
+        // Páginas buscadas em paralelo: se sair capítulo novo no meio, um post pode escorregar
+        // de uma página pra outra e vir duas vezes — o id do post (nunca muda) desduplica.
+        const postsById = new Map();
+        responses.flatMap(response => response.data).forEach(post => postsById.set(post.id, post));
+
+        // Ordem de leitura = chapter_number, igual o próprio site faz. O id do post NÃO serve
+        // pra ordenar: é a ordem de publicação, e capítulo faltante publicado depois (visto na
+        // prática: 599 e 600 saíram depois do 601) iria pro fim.
+        return [...postsById.values()]
             .map(post => ({
                 capitulo: `Chapter ${post.acf.chapter_number}`,
                 name: post.acf.ch_name || `Chapter ${post.acf.chapter_number}`,
-                url: `${this.baseUrl}/chapter/${post.acf.novel_code}-${post.acf.chapter_number}`,
-                index: post.acf.chapter_number,
+                // Link pronto do post (é o que o site usa) em vez de montar code-número na mão.
+                url: post.link
+                    ? this.toFrontendUrl(post.link).replace(/\/$/, '')
+                    : `${this.baseUrl}/chapter/${post.acf.novel_code}-${post.acf.chapter_number}`,
+                index: parseFloat(post.acf.chapter_number),
                 volume: null,
             }))
             .sort((a, b) => a.index - b.index);

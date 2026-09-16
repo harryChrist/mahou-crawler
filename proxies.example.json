@@ -1,0 +1,14 @@
+[
+  {
+    "host": "203.0.113.10",
+    "port": 8080,
+    "protocol": "http"
+  },
+  {
+    "host": "203.0.113.20",
+    "port": 3128,
+    "protocol": "http",
+    "username": "webshare-user",
+    "password": "webshare-pass"
+  }
+]
