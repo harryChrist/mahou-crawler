@@ -76,6 +76,15 @@ class MvlEmpyrProvider extends BaseProvider {
         }
     }
 
+    // 'synopsis-text' vem truncado pela API ("...") — o campo 'synopsis' traz o HTML completo.
+    // Convertido pra texto puro com uma linha em branco entre parágrafos.
+    synopsisFromHtml(html) {
+        if (!html) return '';
+        const $ = cheerio.load(html);
+        const paragraphs = $('p').map((i, el) => $(el).text().trim()).get().filter(Boolean);
+        return (paragraphs.length ? paragraphs.join('\n\n') :$.root().text()).trim();
+    }
+
     async readNovelInfo(novelUrl) {
         try {
             const slug = this.extractSlugFromUrl(novelUrl);
@@ -99,7 +108,7 @@ class MvlEmpyrProvider extends BaseProvider {
                 author: novel['author-name'] ? [novel['author-name']] : [],
                 titles: novel['associated-names'] ? novel['associated-names'].split(',').map(t => t.trim()).filter(Boolean) : [novel.name],
                 genres: novel.genre || [],
-                synopsis: novel['synopsis-text'] || '',
+                synopsis: this.synopsisFromHtml(novel.synopsis) || novel['synopsis-text'] || '',
                 volumes: volumes.length,
                 data: volumes,
                 chapters: chapters.length,
