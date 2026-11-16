@@ -70,12 +70,27 @@ const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(
             if (s.index === c.index && s.volume === c.volume) same++;
             else { if (s.index !== c.index) diffIdx++; if (s.volume !== c.volume) diffVol++; changes.push({ url: c.url, label: c.label, from: [s.volume, s.index], to: [c.volume, c.index] }); }
         }
-        rows.push({ obra, total: out.length, saved: saved.length, dupExcess, same, diffIdx, diffVol, changes });
+        // Espelho no Reader (store.mjs): aplicado à lista ANTIGA salva tem que dar o mesmo que o parser novo,
+        // e aplicado à lista nova não pode mudar nada (idempotência).
+        let mirrorDiff = 0, idemDiff = 0;
+        if (store.normalizeProviderChapters) {
+            const outByUrl = new Map(out.map(c => [c.url, c]));
+            for (const m of store.normalizeProviderChapters(saved)) {
+                const o = outByUrl.get(m.url);
+                if (!o || o.index !== m.index || o.volume !== m.volume) mirrorDiff++;
+            }
+            for (const m of store.normalizeProviderChapters(out)) {
+                const o = outByUrl.get(m.url);
+                if (o.index !== m.index || o.volume !== m.volume) idemDiff++;
+            }
+        }
+        rows.push({ obra, total: out.length, saved: saved.length, dupExcess, same, diffIdx, diffVol, mirrorDiff, idemDiff, changes });
     }
     const sum = k => rows.reduce((a, r) => a + r[k], 0);
     console.log(`parser=${path.basename(parserPath)} obras=${rows.length} rotulos=${sum('total')} (salvos ${sum('saved')})`);
     console.log(`linhas excedentes por chave (volume,indice) duplicada: ${sum('dupExcess')} em ${rows.filter(r => r.dupExcess).length} obras`);
     console.log(`identicos ao salvo: ${sum('same')} | indice mudou: ${sum('diffIdx')} | volume mudou: ${sum('diffVol')}`);
+    console.log(`espelho do Reader (store.mjs) vs parser novo: ${sum('mirrorDiff')} divergencias | idempotencia: ${sum('idemDiff')} alteracoes`);
     for (const r of rows.filter(r => r.dupExcess || r.diffIdx || r.diffVol)) console.log(`  ${r.obra}: dup=${r.dupExcess} idx~${r.diffIdx} vol~${r.diffVol}`);
     if (outJson) fs.writeFileSync(outJson, JSON.stringify(rows, null, 1));
 })().catch(e => { console.error(e); process.exit(1); });
