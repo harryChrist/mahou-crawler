@@ -222,9 +222,117 @@ class CentraNovelProvider extends BaseProvider {
             });
         });
 
+        // Rótulo repetido no site (dois capítulos com o mesmo "Cap. N"): o número certo está na URL.
+        volumes.forEach(volume => this.resolveRepeatedIndexes(volume.chapters));
+        // Rótulo de volume -> número ("01 | Ano 2", "14++", "Extra" não são lidos pelo Number()).
+        this.assignVolumeNumbers(volumes);
+
         volumes.forEach(volume => volume.chapters.sort((a, b) => a.index - b.index));
 
         return { volumes, orderedChapterUrls: rawChapters.map(c => c.url) };
+    }
+
+    // Número do capítulo que a URL carrega ("...-capitulo-1740-2" -> 1740.002, "...-capitulo-14-1-2" ->
+    // 14.001002, "...-capitulo-2-a" -> 2.001, "...-special-67" -> 67), na mesma escala do parseVersionNumber.
+    slugNumber(url) {
+        const slug = this.extractSlug(url || '') || '';
+        const m = /capitulo-(\d+(?:-\d+)*)(?:-([a-z]))?$/i.exec(slug) || /-(\d+)()$/.exec(slug);
+        if (!m) return null;
+        return this.parseVersionNumber(m[1].replace(/-/g, '.') + (m[2] || ''));
+    }
+
+    // Dois capítulos do MESMO volume com o mesmo índice (rótulo repetido: cap. 12 e 13 saem "Cap. 12";
+    // "capitulo-1740" e "capitulo-1740-2"). Só mexe em quem colide. Quem tem o número da URL igual ao
+    // índice fica; os outros usam o número da URL se for livre e próximo (< 4 de distância, descarta
+    // URL com typo como "-67" no lugar de "-87"); sem isso entram como base + k/1000 (mesmo epsilon do
+    // repair-collapsed). Não depende de rede nem da ordem das chaves.
+    resolveRepeatedIndexes(chapters) {
+        const groups = new Map();
+        for (const c of chapters) {
+            if (!groups.has(c.index)) groups.set(c.index, []);
+            groups.get(c.index).push(c);
+        }
+        const used = new Set(chapters.map(c => c.index));
+        for (const [base, group] of groups) {
+            if (group.length < 2) continue;
+            const keeper = group.find(c => this.slugNumber(c.url) === base);
+            const pending = [];
+            for (const c of group) {
+                if (c === keeper) continue;
+                const d = this.slugNumber(c.url);
+                if (d !== null && d !== base && Math.abs(d - base) < 4 && !used.has(d)) {
+                    c.index = d;
+                    used.add(d);
+                } else {
+                    pending.push(c);
+                }
+            }
+            if (!keeper && pending.length) pending.shift(); // ninguém acertou a base: o primeiro da lista fica nela
+            let k = 1;
+            for (const c of pending) {
+                let v;
+                do { v = Number((base + k / 1000).toFixed(9)); k++; } while (used.has(v));
+                c.index = v;
+                used.add(v);
+            }
+        }
+    }
+
+    // Rótulo de volume do site -> número. null = nome sem número ("Extra", "Side Story 1", "Bonus").
+    //   "3" / "04.5"          -> 3 / 4.5
+    //   "01 | Ano 2"          -> 101 (Ano 1 mantém o número do volume; cada ano seguinte soma 100)
+    //   "14+" / "14++"        -> 14.01 / 14.02
+    volumeNumberFromLabel(label) {
+        if (label === null || label === undefined) return 0;
+        const t = String(label).trim();
+        let m;
+        if ((m = /^(\d+(?:\.\d+)?)$/.exec(t))) return Number(m[1]);
+        if ((m = /^(\d+(?:\.\d+)?)\s*\|\s*ano\s*(\d+)$/i.exec(t))) return Number((Number(m[1]) + (Number(m[2]) - 1) * 100).toFixed(4));
+        if ((m = /^(\d+(?:\.\d+)?)(\++)$/.exec(t))) return Number((Number(m[1]) + 0.01 * m[2].length).toFixed(4));
+        return null;
+    }
+
+    // Volume com nome (sem número) quando precisa de número próprio: Extra 1000+N, Side Story 2000+N,
+    // Bonus 3000+N, Especial 4000+N; qualquer outro nome 9000 + hash estável do texto.
+    namedVolumeCode(label) {
+        const t = String(label).trim();
+        const bases = [[/^extra/i, 1000], [/^side\s*story/i, 2000], [/^b[oô]nus/i, 3000], [/^special|^especial/i, 4000]];
+        for (const [re, base] of bases) {
+            if (!re.test(t)) continue;
+            const n = /(\d+(?:\.\d+)?)\s*$/.exec(t);
+            return base + (n ? Number(n[1]) : 0);
+        }
+        let h = 0;
+        for (const ch of t) h = (h * 31 + ch.codePointAt(0)) % 900;
+        return 9000 + h;
+    }
+
+    // Preenche chapter.volume (número) em todos os capítulos. Volume com nome continua 0 (como sempre
+    // foi) a menos que o espaço do volume 0 da obra tenha colisão de índice (extras repetindo o
+    // "Cap. 1" do texto principal, "Extra 1" e "Extra 2" lado a lado): aí TODOS os volumes com nome
+    // da obra ganham o código de namedVolumeCode. Obras sem colisão não mudam.
+    assignVolumeNumbers(volumes) {
+        const named = [];
+        const zeroSpace = [];
+        for (const volume of volumes) {
+            const label = volume.chapters.length ? volume.chapters[0].volume : null;
+            const num = this.volumeNumberFromLabel(label);
+            volume.number = num;
+            if (num === null) { named.push(volume); zeroSpace.push(...volume.chapters); }
+            else if (num === 0) zeroSpace.push(...volume.chapters);
+        }
+        let collide = false;
+        const seen = new Set();
+        for (const c of zeroSpace) {
+            if (seen.has(c.index)) { collide = true; break; }
+            seen.add(c.index);
+        }
+        for (const volume of named) {
+            volume.number = collide ? this.namedVolumeCode(volume.chapters[0].volume) : 0;
+        }
+        for (const volume of volumes) {
+            for (const c of volume.chapters) c.volume = c.volume === null ? null : volume.number;
+        }
     }
 
     // Ponteiro leve (sem conteúdo) de onde cada capítulo está na REST API, calculado
