@@ -94,8 +94,7 @@ class CentraNovelProvider extends BaseProvider {
             const { volumes, orderedChapterUrls } = this.parseVolumesFromPage($);
 
             if (orderedChapterUrls.length > 0) {
-                const slug = this.extractSlug(fullUrl);
-                await this.cacheChapterPositions(slug, orderedChapterUrls);
+                await this.cacheChapterPositions(orderedChapterUrls);
             }
 
             return {
@@ -130,13 +129,21 @@ class CentraNovelProvider extends BaseProvider {
             const chapterNum = $(element).find('.epl-num').text().trim();
             const chapterTitle = $(element).find('.epl-title').text().trim();
             const volumeMatch = chapterNum.match(/Vol\.\s*(.+?)\s*Cap\./i);
-            const capMatch = chapterNum.match(/Cap\.\s*(.+)$/i);
+            // Só o número (com sufixo de letra opcional) — o site marca o capítulo
+            // final com uma tag depois do número ("Cap. 529 [Fim]"), e ".+$" pegava
+            // a tag junto, quebrando o parseVersionNumber (que aí retornava null e
+            // o capítulo caía no ramo "sem número").
+            // O `(?:\s*-\s*(\d+))?` é o número da PARTE: obras como Heavenly Jewel Change
+            // publicam "Cap. 14-1", "14-2", "14-3" como três páginas distintas — sem
+            // capturar isso, as três viram index 14 e colapsam numa chave só.
+            const capMatch = chapterNum.match(/Cap\.\s*([\d.,]+[a-zA-Z]?)(?:\s*-\s*(\d+))?/i);
 
             // Número real do capítulo como o site mostra (ex: "Cap. 600" -> 600). Usa
             // isso como index sempre que der — assim fica estável mesmo se o site
             // pular um número e lançar depois (ex: tem 1-49 e 51-100, e o 50 sai mais
             // tarde: o 51 continua sendo 51, não desloca por causa do furo).
             const parsedNum = capMatch ? this.parseVersionNumber(capMatch[1].trim()) : null;
+            const parsedPart = capMatch && capMatch[2] !== undefined ? parseInt(capMatch[2], 10) : null;
 
             rawChapters.push({
                 url: chapterUrl,
@@ -144,12 +151,27 @@ class CentraNovelProvider extends BaseProvider {
                 name: chapterTitle,
                 volumeLabel: volumeMatch ? volumeMatch[1].trim() : null,
                 realIndex: parsedNum,
+                part: Number.isNaN(parsedPart) ? null : parsedPart,
             });
         });
 
         // A listagem do site vem do mais novo pro mais antigo — inverte pra ordem real
         // de leitura (também vira a base da posição global de cada capítulo na obra).
         rawChapters.reverse();
+
+        // Capítulo dividido em partes: a parte entra como decimal na base 10 ("14-3" -> 14.3),
+        // ordenando certo junto do capítulo inteiro (14.3 < 15.1) e sem confundir com a notação
+        // de ponto do site ("Cap. 14.3" já vem como 14.003 do parseVersionNumber — essa fica como
+        // está). O divisor depende do MAIOR número de parte daquele capítulo (não da parte em si),
+        // senão a parte 10 de um capítulo de 10+ partes colidiria com a parte 1 (14.1 == 14 + 10/100).
+        // Chave com o volume junto porque a numeração reinicia por volume em várias obras.
+        const partKey = (chapter) => `${chapter.volumeLabel ?? 'no-volume'}|${chapter.realIndex}`;
+        const maiorParteByChapter = new Map();
+        for (const chapter of rawChapters) {
+            if (chapter.part === null || chapter.realIndex === null) continue;
+            const key = partKey(chapter);
+            maiorParteByChapter.set(key, Math.max(maiorParteByChapter.get(key) ?? 0, chapter.part));
+        }
 
         const volumes = [];
         const volumeIndexByLabel = new Map();
@@ -176,6 +198,11 @@ class CentraNovelProvider extends BaseProvider {
             // (ex: Interlúdio, Extra 1, Extra 2...) usam um contador de sequência pra
             // não colidir entre si — reseta assim que aparece um número de novo.
             let index = chapter.realIndex;
+            if (index !== null && chapter.part !== null) {
+                const maxPart = maiorParteByChapter.get(partKey(chapter)) ?? chapter.part;
+                const divisor = maxPart < 10 ? 10 : maxPart < 100 ? 100 : 1000;
+                index = chapter.realIndex + chapter.part / divisor;
+            }
             if (index === null) {
                 const streak = nonNumericStreakByVolume.get(key) + 1;
                 nonNumericStreakByVolume.set(key, streak);
@@ -191,6 +218,7 @@ class CentraNovelProvider extends BaseProvider {
                 url: chapter.url,
                 index,
                 volume: chapter.volumeLabel,
+                part: chapter.part,
             });
         });
 
@@ -202,17 +230,25 @@ class CentraNovelProvider extends BaseProvider {
     // Ponteiro leve (sem conteúdo) de onde cada capítulo está na REST API, calculado
     // pela posição real dele na obra — não pelo número no slug, que pode resetar por
     // volume (Vol.1 Cap.1..50, Vol.2 Cap.1..30...) e não bateria com a página certa.
-    async cacheChapterPositions(slug, orderedChapterUrls) {
-        const { data: categories } = await axiosInstance.get(`${this.wpApiUrl}/categories`, {
-            params: { slug }
+    async cacheChapterPositions(orderedChapterUrls) {
+        // O slug da categoria no WP nem sempre bate com o slug da obra na URL — o site
+        // já foi visto sufixando a categoria com uma data ao recriá-la (ex: obra
+        // "supreme-magus", categoria "supreme-magus-20260913"), o que fazia a busca por
+        // slug nunca achar nada e todo capítulo cair no fallback unitário (sempre MISS,
+        // nunca pré-aquecia os 100 vizinhos). Descobrir a categoria pelo ID real do
+        // primeiro capítulo é imune a isso: o ID de uma taxonomia não muda quando só o
+        // slug é renomeado.
+        const firstChapterSlug = this.extractSlug(orderedChapterUrls[0]);
+        const { data: posts } = await axiosInstance.get(`${this.wpApiUrl}/posts`, {
+            params: { slug: firstChapterSlug }
         });
 
-        const category = categories[0];
-        if (!category) return;
+        const categoryId = posts[0]?.categories?.[0];
+        if (!categoryId) return;
 
         orderedChapterUrls.forEach((url, index) => {
             const page = Math.ceil((index + 1) / 100);
-            cache.set(cacheKeys.chapterPosition(this.name, url), { categoryId: category.id, page }, cacheTTL.chapters);
+            cache.set(cacheKeys.chapterPosition(this.name, url), { categoryId, page }, cacheTTL.chapters);
         });
     }
 
