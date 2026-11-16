@@ -131,7 +131,10 @@ class BlNovelProvider extends BaseProvider {
             const url = link.attr('href');
             if (!url) return;
 
-            const text = link.text().replace(/\s+/g, ' ').trim();
+            // O site manda "í" decomposto (i + acento combinante U+0301) em vez do
+            // caractere composto — sem normalize, "cap[íi]tulo" não bate e todo
+            // capítulo cai no ramo "sem número", zerando o index real.
+            const text = link.text().normalize('NFC').replace(/\s+/g, ' ').trim();
             raw.push({ url: this.getFullUrl(url), ...this.splitChapterTitle(text) });
         });
 
